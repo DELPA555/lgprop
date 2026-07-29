@@ -207,6 +207,19 @@ Migración: `supabase/migrations/0006_mantenimiento.sql` (tabla `mantenimiento`:
 - **Módulo Mantenimiento** (`/mantenimiento`): todos los reclamos de todas las propiedades,
   con filtro por estado (arranca en *pendientes*) y búsqueda; enlace a la propiedad.
 
+## Garantías y depósitos
+
+Migración: `supabase/migrations/0007_deposito.sql` (agrega a `contratos`:
+`monto_deposito`, `estado_deposito` retenido/devuelto, `fecha_devolucion_deposito`; y el
+tipo de notificación `deposito_pendiente`).
+
+- En el **modal de contrato** hay una sección *Garantía / Depósito* (monto, estado, fecha de
+  devolución). Si el contrato está *vencido/rescindido* con el depósito aún *retenido*,
+  muestra una advertencia. En la lista, esos contratos llevan una marca “depósito a devolver”.
+- El motor **`enviar-avisos`** genera un recordatorio (`deposito_pendiente`) por cada contrato
+  finalizado con depósito retenido. **Redeployar** la función tras esta migración:
+  `supabase functions deploy enviar-avisos`.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).

@@ -17,6 +17,7 @@ export type TipoIndice =
   | 'Porcentaje fijo'
   | 'Manual'
 export type EstadoContrato = 'activo' | 'vencido' | 'rescindido'
+export type EstadoDeposito = 'retenido' | 'devuelto'
 export type EstadoPago = 'pagado' | 'pendiente' | 'atrasado'
 export type EstadoLiquidacion = 'pendiente' | 'enviada'
 export type EstadoMantenimiento = 'pendiente' | 'en_proceso' | 'resuelto'
@@ -26,6 +27,7 @@ export type TipoNotificacion =
   | 'actualizacion_monto'
   | 'pago_atrasado'
   | 'expensas_pendientes'
+  | 'deposito_pendiente'
 
 export type Dueno = {
   id: string
@@ -82,6 +84,9 @@ export type Contrato = {
   porcentaje_fijo: number | null
   proxima_actualizacion: string | null
   estado: EstadoContrato
+  monto_deposito: number
+  estado_deposito: EstadoDeposito
+  fecha_devolucion_deposito: string | null
   notas: string | null
   created_at: string
 }
@@ -216,6 +221,7 @@ export type Database = {
       tipo_indice: TipoIndice
       estado_contrato: EstadoContrato
       estado_pago: EstadoPago
+      estado_deposito: EstadoDeposito
       estado_liquidacion: EstadoLiquidacion
       estado_mantenimiento: EstadoMantenimiento
       rol_usuario: RolUsuario

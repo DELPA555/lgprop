@@ -9,7 +9,9 @@ import {
   Sparkles,
   Loader2,
   UserPlus,
-  Home
+  Home,
+  AlertTriangle,
+  ShieldCheck
 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type {
@@ -18,6 +20,7 @@ import type {
   Inquilino,
   Dueno,
   EstadoContrato,
+  EstadoDeposito,
   TipoIndice
 } from '@/types/database'
 import PageHeader from '@/components/PageHeader'
@@ -73,6 +76,9 @@ const EMPTY: Form = {
   porcentaje_fijo: null,
   proxima_actualizacion: null,
   estado: 'activo',
+  monto_deposito: 0,
+  estado_deposito: 'retenido',
+  fecha_devolucion_deposito: null,
   notas: ''
 }
 
@@ -382,6 +388,12 @@ export default function Contratos(): JSX.Element {
         form.indice_actualizacion === 'Porcentaje fijo' ? Number(form.porcentaje_fijo) : null,
       proxima_actualizacion: form.proxima_actualizacion || null,
       estado: (form.estado ?? 'activo') as EstadoContrato,
+      monto_deposito: Number(form.monto_deposito) || 0,
+      estado_deposito: (form.estado_deposito ?? 'retenido') as EstadoDeposito,
+      fecha_devolucion_deposito:
+        form.estado_deposito === 'devuelto'
+          ? form.fecha_devolucion_deposito || todayISO()
+          : null,
       notas: form.notas || null
     }
     const { error } = editing
@@ -526,6 +538,16 @@ export default function Contratos(): JSX.Element {
                       >
                         {c.estado}
                       </span>
+                      {c.estado !== 'activo' &&
+                        c.estado_deposito === 'retenido' &&
+                        c.monto_deposito > 0 && (
+                          <div
+                            className="mt-1 inline-flex items-center gap-1 text-[10px] text-amber-400"
+                            title="El depósito sigue retenido"
+                          >
+                            <AlertTriangle size={10} /> depósito a devolver
+                          </div>
+                        )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
@@ -815,6 +837,52 @@ export default function Contratos(): JSX.Element {
                 Con índice manual, el nuevo monto se carga a mano en cada actualización.
               </p>
             )}
+          </div>
+
+          {/* Garantía / Depósito */}
+          <div className="pt-2 border-t border-border">
+            <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <ShieldCheck size={13} /> Garantía / Depósito
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Monto del depósito">
+                <TextInput
+                  type="number"
+                  min={0}
+                  value={form.monto_deposito ?? 0}
+                  onChange={(e) => patch({ monto_deposito: Number(e.target.value) })}
+                />
+              </Field>
+              <Field label="Estado del depósito">
+                <Select
+                  value={form.estado_deposito ?? 'retenido'}
+                  onChange={(e) => patch({ estado_deposito: e.target.value as EstadoDeposito })}
+                >
+                  <option value="retenido">Retenido</option>
+                  <option value="devuelto">Devuelto</option>
+                </Select>
+              </Field>
+              {form.estado_deposito === 'devuelto' && (
+                <Field label="Fecha de devolución">
+                  <TextInput
+                    type="date"
+                    value={form.fecha_devolucion_deposito ?? ''}
+                    onChange={(e) =>
+                      patch({ fecha_devolucion_deposito: e.target.value || null })
+                    }
+                  />
+                </Field>
+              )}
+            </div>
+            {(form.estado === 'vencido' || form.estado === 'rescindido') &&
+              form.estado_deposito === 'retenido' &&
+              Number(form.monto_deposito) > 0 && (
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 text-xs text-amber-300">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                  Este contrato está {form.estado} y el depósito sigue retenido. Acordate de
+                  resolver la devolución de la garantía.
+                </div>
+              )}
           </div>
 
           <Field label="Notas">

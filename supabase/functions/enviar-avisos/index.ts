@@ -34,6 +34,7 @@ type Tipo =
   | 'actualizacion_monto'
   | 'pago_atrasado'
   | 'expensas_pendientes'
+  | 'deposito_pendiente'
 
 interface NuevaNotif {
   tipo: Tipo
@@ -143,6 +144,26 @@ Deno.serve(async () => {
     }
   }
 
+  // 5) Depósitos pendientes de devolución (contratos finalizados, depósito retenido)
+  {
+    const { data } = await supabase
+      .from('contratos')
+      .select('id, monto_deposito, propiedades(direccion)')
+      .in('estado', ['vencido', 'rescindido'])
+      .eq('estado_deposito', 'retenido')
+      .gt('monto_deposito', 0)
+    for (const c of data ?? []) {
+      const dir = (c as any).propiedades?.direccion ?? 'la propiedad'
+      const monto = Number((c as any).monto_deposito || 0).toLocaleString('es-AR')
+      pendientes.push({
+        tipo: 'deposito_pendiente',
+        contrato_id: c.id,
+        titulo: `Depósito por devolver — ${dir}`,
+        mensaje: `El contrato de ${dir} está finalizado y el depósito en garantía ($${monto}) sigue retenido. Coordiná la devolución con el inquilino y marcá el depósito como devuelto en la app.`
+      })
+    }
+  }
+
   // Dedup contra notificaciones recientes sin leer
   const { data: recientes } = await supabase
     .from('notificaciones')
@@ -167,7 +188,8 @@ Deno.serve(async () => {
       vencimiento_contrato: [],
       actualizacion_monto: [],
       pago_atrasado: [],
-      expensas_pendientes: []
+      expensas_pendientes: [],
+      deposito_pendiente: []
     }
     for (const n of aInsertar) grupos[n.tipo].push(n)
 
@@ -175,7 +197,8 @@ Deno.serve(async () => {
       vencimiento_contrato: 'Contratos por vencer',
       actualizacion_monto: 'Actualizaciones de alquiler pendientes',
       pago_atrasado: 'Pagos por registrar',
-      expensas_pendientes: 'Expensas por conciliar'
+      expensas_pendientes: 'Expensas por conciliar',
+      deposito_pendiente: 'Depósitos por devolver'
     }
 
     const secciones = (Object.keys(grupos) as Tipo[])
