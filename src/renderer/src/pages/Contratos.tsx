@@ -1,5 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Plus, Pencil, Trash2, Search, CalendarClock } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  CalendarClock,
+  Upload,
+  Sparkles,
+  Loader2,
+  UserPlus,
+  Home
+} from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type {
   Contrato,
@@ -17,8 +28,24 @@ import { Field, TextInput, TextArea, Select } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
 import { formatARS, formatDate } from '@/lib/format'
 import { computeFechaFin, computeProximaActualizacion, daysUntil, todayISO } from '@/lib/dates'
+import GenerarContratoModal from '@/components/ai/GenerarContratoModal'
+import { edgeErrorMessage } from '@/lib/edgeError'
 
 type Form = Partial<Contrato>
+
+// Datos que devuelve la Edge Function de extracción de contratos.
+type Extraido = {
+  nombre_inquilino?: string | null
+  dni_inquilino?: string | null
+  nombre_dueno?: string | null
+  direccion_propiedad?: string | null
+  monto_inicial?: number | null
+  fecha_inicio?: string | null
+  fecha_fin?: string | null
+  indice_actualizacion?: string | null
+  frecuencia_actualizacion_meses?: number | null
+  monto_expensas?: number | null
+}
 
 const INDICES: TipoIndice[] = [
   'ICL',
@@ -69,6 +96,11 @@ export default function Contratos(): JSX.Element {
   const [saving, setSaving] = useState(false)
   const [delTarget, setDelTarget] = useState<Contrato | null>(null)
   const [deleting, setDeleting] = useState(false)
+  // IA: carga de contrato existente (extracción) y redacción
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [extracting, setExtracting] = useState(false)
+  const [extraido, setExtraido] = useState<Extraido | null>(null)
+  const [generarOpen, setGenerarOpen] = useState(false)
 
   const propMap = useMemo(() => {
     const m: Record<string, Propiedad> = {}
@@ -151,8 +183,147 @@ export default function Contratos(): JSX.Element {
     })
   }
 
+  // ── IA: carga de contrato existente (extracción de PDF/imagen) ────────────
+  const num = (v: unknown): number | null => {
+    const n = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : Number(v)
+    return Number.isFinite(n) ? n : null
+  }
+  const asIndice = (v: unknown): TipoIndice | null =>
+    INDICES.includes(v as TipoIndice) ? (v as TipoIndice) : null
+
+  const readBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const r = new FileReader()
+      r.onload = () => {
+        const s = String(r.result)
+        resolve(s.slice(s.indexOf(',') + 1))
+      }
+      r.onerror = () => reject(new Error('No se pudo leer el archivo'))
+      r.readAsDataURL(file)
+    })
+
+  const guessType = (f: File): string => {
+    if (f.type) return f.type
+    const n = f.name.toLowerCase()
+    if (n.endsWith('.pdf')) return 'application/pdf'
+    if (n.endsWith('.png')) return 'image/png'
+    if (n.endsWith('.jpg') || n.endsWith('.jpeg')) return 'image/jpeg'
+    if (n.endsWith('.webp')) return 'image/webp'
+    return ''
+  }
+
+  const onFileSelected = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const f = e.target.files?.[0]
+    e.target.value = '' // permitir re-seleccionar el mismo archivo
+    if (!f) return
+    const media_type = guessType(f)
+    if (!media_type) return toast.error('Formato no soportado. Usá PDF, JPG, PNG o WEBP.')
+    setExtracting(true)
+    try {
+      const file_base64 = await readBase64(f)
+      const { data, error } = await supabase.functions.invoke('extraer-datos-contrato', {
+        body: { file_base64, media_type }
+      })
+      if (error) return void toast.error(await edgeErrorMessage(error, 'No se pudieron extraer los datos'))
+      if (!data?.ok) return void toast.error(data?.error ?? 'No se pudieron extraer los datos')
+      applyExtraction(data.datos as Extraido)
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  const applyExtraction = (d: Extraido): void => {
+    const norm = (s?: string | null): string => (s ?? '').trim().toLowerCase()
+    const inq = inquilinos.find(
+      (i) =>
+        (d.dni_inquilino && i.dni && norm(i.dni) === norm(d.dni_inquilino)) ||
+        (d.nombre_inquilino && norm(i.nombre) === norm(d.nombre_inquilino)) ||
+        (d.nombre_inquilino && norm(i.nombre).includes(norm(d.nombre_inquilino)))
+    )
+    const due = duenos.find(
+      (x) => d.nombre_dueno && norm(x.nombre).includes(norm(d.nombre_dueno))
+    )
+    const prop = propiedades.find(
+      (p) => d.direccion_propiedad && norm(p.direccion).includes(norm(d.direccion_propiedad))
+    )
+    const monto = num(d.monto_inicial) ?? 0
+    const fi = d.fecha_inicio || todayISO()
+    const ff = d.fecha_fin || ''
+    const freq = num(d.frecuencia_actualizacion_meses) ?? 3
+    setEditing(null)
+    setForm({
+      ...EMPTY,
+      propiedad_id: prop?.id ?? '',
+      inquilino_id: inq?.id ?? '',
+      dueno_id: due?.id ?? prop?.dueno_id ?? null,
+      monto_inicial: monto,
+      monto_actual: monto,
+      fecha_inicio: fi,
+      fecha_fin: ff,
+      indice_actualizacion: asIndice(d.indice_actualizacion) ?? 'ICL',
+      frecuencia_actualizacion_meses: freq,
+      proxima_actualizacion: computeProximaActualizacion(fi, freq, ff || computeFechaFin(fi, 36)),
+      estado: 'activo'
+    })
+    setExtraido(d)
+    setModalOpen(true)
+    toast.success('Datos extraídos. Revisalos y completá lo que falte.')
+  }
+
+  // Crear al vuelo la entidad que la IA leyó pero no existe todavía
+  const createInquilino = async (): Promise<void> => {
+    if (!extraido?.nombre_inquilino) return
+    const { data, error } = await supabase
+      .from('inquilinos')
+      .insert({ nombre: extraido.nombre_inquilino, dni: extraido.dni_inquilino || null })
+      .select()
+      .single()
+    if (error || !data) return void toast.error(error?.message ?? 'No se pudo crear el inquilino')
+    await load()
+    patch({ inquilino_id: data.id })
+    toast.success('Inquilino creado')
+  }
+  const createDueno = async (): Promise<void> => {
+    if (!extraido?.nombre_dueno) return
+    const { data, error } = await supabase
+      .from('duenos')
+      .insert({ nombre: extraido.nombre_dueno })
+      .select()
+      .single()
+    if (error || !data) return void toast.error(error?.message ?? 'No se pudo crear el dueño')
+    await load()
+    patch({ dueno_id: data.id })
+    toast.success('Dueño creado')
+  }
+  const createPropiedad = async (): Promise<void> => {
+    if (!extraido?.direccion_propiedad) return
+    const { data, error } = await supabase
+      .from('propiedades')
+      .insert({
+        direccion: extraido.direccion_propiedad,
+        dueno_id: form.dueno_id || null,
+        estado: 'alquilada',
+        monto_expensas: num(extraido.monto_expensas) ?? 0,
+        paga_expensas: 'inquilino'
+      })
+      .select()
+      .single()
+    if (error || !data) return void toast.error(error?.message ?? 'No se pudo crear la propiedad')
+    await load()
+    patch({ propiedad_id: data.id })
+    toast.success('Propiedad creada')
+  }
+
+  const closeModal = (): void => {
+    setModalOpen(false)
+    setExtraido(null)
+  }
+
   const openCreate = (): void => {
     setEditing(null)
+    setExtraido(null)
     setForm({ ...EMPTY, fecha_inicio: todayISO() })
     // pre-cálculo de derivados
     setTimeout(
@@ -172,6 +343,7 @@ export default function Contratos(): JSX.Element {
   }
   const openEdit = (c: Contrato): void => {
     setEditing(c)
+    setExtraido(null)
     setForm({ ...c })
     setModalOpen(true)
   }
@@ -241,9 +413,34 @@ export default function Contratos(): JSX.Element {
         title="Contratos"
         subtitle={`${rows.length} contrato${rows.length !== 1 ? 's' : ''}`}
         actions={
-          <button onClick={openCreate} className="btn-primary flex items-center gap-2 text-sm">
-            <Plus size={16} /> Nuevo contrato
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/pdf,image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={onFileSelected}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={extracting || !isSupabaseConfigured}
+              className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-border text-zinc-300 hover:text-white hover:bg-white/5 disabled:opacity-50"
+              title="Subí un PDF o foto de un contrato firmado y la IA extrae los datos"
+            >
+              {extracting ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+              {extracting ? 'Leyendo…' : 'Cargar contrato existente'}
+            </button>
+            <button
+              onClick={() => setGenerarOpen(true)}
+              disabled={!isSupabaseConfigured}
+              className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-border text-zinc-300 hover:text-white hover:bg-white/5 disabled:opacity-50"
+            >
+              <Sparkles size={16} /> Generar con IA
+            </button>
+            <button onClick={openCreate} className="btn-primary flex items-center gap-2 text-sm">
+              <Plus size={16} /> Nuevo contrato
+            </button>
+          </div>
         }
       />
 
@@ -358,13 +555,13 @@ export default function Contratos(): JSX.Element {
 
       <Modal
         open={modalOpen}
-        title={editing ? 'Editar contrato' : 'Nuevo contrato'}
-        onClose={() => setModalOpen(false)}
+        title={editing ? 'Editar contrato' : extraido ? 'Revisar contrato cargado' : 'Nuevo contrato'}
+        onClose={closeModal}
         wide
         footer={
           <>
             <button
-              onClick={() => setModalOpen(false)}
+              onClick={closeModal}
               className="px-4 py-2 rounded-lg text-sm text-zinc-300 hover:text-white border border-border"
             >
               Cancelar
@@ -376,6 +573,60 @@ export default function Contratos(): JSX.Element {
         }
       >
         <div className="space-y-3">
+          {extraido && (
+            <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 text-xs space-y-2">
+              <p className="text-sky-300 font-medium flex items-center gap-1.5">
+                <Sparkles size={13} /> Datos extraídos por IA — revisá y corregí antes de guardar
+              </p>
+              <div className="text-zinc-400 space-y-0.5">
+                {extraido.nombre_inquilino && (
+                  <div>
+                    Inquilino: <span className="text-zinc-200">{extraido.nombre_inquilino}</span>
+                    {extraido.dni_inquilino ? ` (DNI ${extraido.dni_inquilino})` : ''}
+                  </div>
+                )}
+                {extraido.nombre_dueno && (
+                  <div>
+                    Dueño: <span className="text-zinc-200">{extraido.nombre_dueno}</span>
+                  </div>
+                )}
+                {extraido.direccion_propiedad && (
+                  <div>
+                    Propiedad:{' '}
+                    <span className="text-zinc-200">{extraido.direccion_propiedad}</span>
+                  </div>
+                )}
+              </div>
+              {(!form.inquilino_id || !form.dueno_id || !form.propiedad_id) && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {!form.inquilino_id && extraido.nombre_inquilino && (
+                    <button
+                      onClick={createInquilino}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md border border-border text-zinc-300 hover:text-white hover:bg-white/5"
+                    >
+                      <UserPlus size={12} /> Crear inquilino «{extraido.nombre_inquilino}»
+                    </button>
+                  )}
+                  {!form.dueno_id && extraido.nombre_dueno && (
+                    <button
+                      onClick={createDueno}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md border border-border text-zinc-300 hover:text-white hover:bg-white/5"
+                    >
+                      <UserPlus size={12} /> Crear dueño «{extraido.nombre_dueno}»
+                    </button>
+                  )}
+                  {!form.propiedad_id && extraido.direccion_propiedad && (
+                    <button
+                      onClick={createPropiedad}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md border border-border text-zinc-300 hover:text-white hover:bg-white/5"
+                    >
+                      <Home size={12} /> Crear propiedad «{extraido.direccion_propiedad}»
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {/* Partes */}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Propiedad" required>
@@ -581,6 +832,14 @@ export default function Contratos(): JSX.Element {
         onConfirm={doDelete}
         onClose={() => setDelTarget(null)}
         loading={deleting}
+      />
+
+      <GenerarContratoModal
+        open={generarOpen}
+        onClose={() => setGenerarOpen(false)}
+        propiedades={propiedades}
+        inquilinos={inquilinos}
+        duenos={duenos}
       />
     </div>
   )

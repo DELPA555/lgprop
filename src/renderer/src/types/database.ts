@@ -117,6 +117,17 @@ export type Pago = {
   created_at: string
 }
 
+export type ContratoGenerado = {
+  id: string
+  contrato_id: string | null
+  origen: string
+  generado_por: string | null
+  generado_por_nombre: string | null
+  datos: Record<string, unknown> | null
+  texto: string | null
+  created_at: string
+}
+
 export type UsuarioEquipo = {
   id: string
   auth_user_id: string
@@ -160,6 +171,7 @@ export type Database = {
       pagos: TableDef<Pago>
       usuarios_equipo: TableDef<UsuarioEquipo>
       notificaciones: TableDef<Notificacion>
+      contratos_generados: TableDef<ContratoGenerado>
     }
     Views: Record<string, never>
     Functions: Record<string, never>

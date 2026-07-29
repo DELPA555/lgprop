@@ -2,7 +2,7 @@
 -- Scheduling de Edge Functions con pg_cron + pg_net (Supabase)
 -- Ejecutar UNA vez en el SQL Editor del proyecto (rol de servicio).
 --
--- Reemplazá <PROJECT_REF> por el ref de tu proyecto y <ANON_OR_SERVICE_KEY>
+-- Reemplazá tvvmsuminnurcqtjvepm por el ref de tu proyecto y <ANON_OR_SERVICE_KEY>
 -- por una key válida (se recomienda el service_role guardado como secreto).
 -- ════════════════════════════════════════════════════════════════════════════
 
@@ -16,7 +16,7 @@ select cron.schedule(
   '0 12 2 * *',
   $$
   select net.http_post(
-    url     := 'https://<PROJECT_REF>.functions.supabase.co/actualizar-indices',
+    url     := 'https://tvvmsuminnurcqtjvepm.functions.supabase.co/actualizar-indices',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer <ANON_OR_SERVICE_KEY>'
@@ -32,7 +32,7 @@ select cron.schedule(
   '0 11 * * *',
   $$
   select net.http_post(
-    url     := 'https://<PROJECT_REF>.functions.supabase.co/enviar-avisos',
+    url     := 'https://tvvmsuminnurcqtjvepm.functions.supabase.co/enviar-avisos',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'Authorization', 'Bearer <ANON_OR_SERVICE_KEY>'
