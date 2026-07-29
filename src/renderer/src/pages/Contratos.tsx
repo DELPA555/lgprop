@@ -29,6 +29,7 @@ import { useToast } from '@/components/ui/Toast'
 import { formatARS, formatDate } from '@/lib/format'
 import { computeFechaFin, computeProximaActualizacion, daysUntil, todayISO } from '@/lib/dates'
 import GenerarContratoModal from '@/components/ai/GenerarContratoModal'
+import { edgeErrorMessage } from '@/lib/edgeError'
 
 type Form = Partial<Contrato>
 
@@ -223,7 +224,7 @@ export default function Contratos(): JSX.Element {
       const { data, error } = await supabase.functions.invoke('extraer-datos-contrato', {
         body: { file_base64, media_type }
       })
-      if (error) return void toast.error(error.message)
+      if (error) return void toast.error(await edgeErrorMessage(error, 'No se pudieron extraer los datos'))
       if (!data?.ok) return void toast.error(data?.error ?? 'No se pudieron extraer los datos')
       applyExtraction(data.datos as Extraido)
     } catch (err) {

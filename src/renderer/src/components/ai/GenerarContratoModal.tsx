@@ -7,6 +7,7 @@ import { Field, TextInput, TextArea, Select } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
 import { todayISO } from '@/lib/dates'
 import { exportContratoPDF } from '@/lib/pdf'
+import { edgeErrorMessage } from '@/lib/edgeError'
 
 const INDICES: TipoIndice[] = [
   'ICL',
@@ -102,7 +103,7 @@ export default function GenerarContratoModal({
     })
     setGenerando(false)
 
-    if (error) return void toast.error(error.message)
+    if (error) return void toast.error(await edgeErrorMessage(error, 'No se pudo generar el contrato'))
     if (!data?.ok) return void toast.error(data?.error ?? 'No se pudo generar el contrato')
     setTexto(data.texto as string)
     toast.success('Contrato redactado. Revisalo antes de exportar.')
