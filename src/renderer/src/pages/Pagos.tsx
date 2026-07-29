@@ -268,6 +268,8 @@ export default function Pagos(): JSX.Element {
             <tr className="text-left text-xs text-zinc-500 uppercase tracking-wider border-b border-border">
               <th className="px-4 py-3 font-medium">Contrato</th>
               <th className="px-4 py-3 font-medium text-right">Monto</th>
+              <th className="px-4 py-3 font-medium text-right">Comisión</th>
+              <th className="px-4 py-3 font-medium text-right">Neto dueño</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium text-center">Expensas</th>
               <th className="px-4 py-3 font-medium">Fecha pago</th>
@@ -277,13 +279,13 @@ export default function Pagos(): JSX.Element {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={8} className="px-4 py-10 text-center text-zinc-600">
                   Cargando…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={8} className="px-4 py-10 text-center text-zinc-600">
                   {pagos.length === 0
                     ? 'No hay cuotas para este mes. Usá “Generar cuotas del mes”.'
                     : 'Sin resultados con el filtro actual.'}
@@ -295,6 +297,17 @@ export default function Pagos(): JSX.Element {
                   <td className="px-4 py-2.5 text-white">{contratoLabel(p.contrato_id)}</td>
                   <td className="px-4 py-2.5 text-right text-zinc-200 tabular-nums">
                     {formatARS(p.monto)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-amber-400/80 tabular-nums text-xs">
+                    {p.monto_comision > 0 ? formatARS(p.monto_comision) : '—'}
+                    {p.porcentaje_comision_aplicado > 0 && (
+                      <div className="text-[10px] text-zinc-600">
+                        {p.porcentaje_comision_aplicado}%
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-emerald-400 tabular-nums">
+                    {formatARS(p.monto_neto)}
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1">

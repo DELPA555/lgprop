@@ -14,6 +14,7 @@ import Contratos from './pages/Contratos'
 import Indices from './pages/Indices'
 import Actualizaciones from './pages/Actualizaciones'
 import Pagos from './pages/Pagos'
+import Liquidaciones from './pages/Liquidaciones'
 import Equipo from './pages/Equipo'
 
 function FullScreenConfig(): JSX.Element {
@@ -69,6 +70,7 @@ function AppRoutes(): JSX.Element {
         <Route path="/actualizaciones" element={<Actualizaciones />} />
         <Route path="/indices" element={<Indices />} />
         <Route path="/pagos" element={<Pagos />} />
+        <Route path="/liquidaciones" element={<Liquidaciones />} />
         <Route path="/equipo" element={isAdmin ? <Equipo /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Dashboard />} />
       </Routes>

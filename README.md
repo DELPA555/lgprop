@@ -178,6 +178,23 @@ $env:GH_TOKEN = "ghp_tu_token_aca"
 > adjunto (lo sube `publish:win`; un Release hecho a mano no lo tiene) y que la versión
 > publicada sea **mayor** que la instalada.
 
+## Comisión y Liquidación a dueños
+
+Migración: `supabase/migrations/0005_comision_liquidacion.sql`.
+
+- **Porcentaje de comisión (modelo híbrido):**
+  - `duenos.porcentaje_comision` — valor por defecto del dueño.
+  - `propiedades.porcentaje_comision` — override por propiedad; **NULL = hereda del dueño**.
+- **Cálculo automático por pago:** un trigger (`trg_calc_comision_pago`) completa en cada
+  `pago` el `porcentaje_comision_aplicado`, el `monto_comision` (= monto × %) y el
+  `monto_neto` (= monto − comisión). Se recalcula al crear o editar el monto del pago.
+- **Módulo Liquidaciones** (`/liquidaciones`): por mes y por dueño muestra propiedades
+  administradas, bruto cobrado, comisión retenida y neto a transferir (sobre los pagos en
+  estado *cobrado*). Botón **Generar liquidación** → registra la liquidación y descarga un
+  **PDF** (dirección, período, bruto, comisión, neto, datos de transferencia, fecha). Cada
+  liquidación se marca **pendiente / enviada** (tabla `liquidaciones`, única por dueño+período).
+- **Dashboard:** KPIs de *Comisiones cobradas* del mes y del año en curso.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).

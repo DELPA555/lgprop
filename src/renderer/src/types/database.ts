@@ -18,6 +18,7 @@ export type TipoIndice =
   | 'Manual'
 export type EstadoContrato = 'activo' | 'vencido' | 'rescindido'
 export type EstadoPago = 'pagado' | 'pendiente' | 'atrasado'
+export type EstadoLiquidacion = 'pendiente' | 'enviada'
 export type RolUsuario = 'admin' | 'operador'
 export type TipoNotificacion =
   | 'vencimiento_contrato'
@@ -32,6 +33,7 @@ export type Dueno = {
   email: string | null
   cbu: string | null
   alias_cbu: string | null
+  porcentaje_comision: number
   notas: string | null
   created_at: string
 }
@@ -57,6 +59,7 @@ export type Propiedad = {
   estado: EstadoPropiedad
   monto_expensas: number
   paga_expensas: PagaExpensas
+  porcentaje_comision: number | null // NULL = hereda del dueño
   notas: string | null
   created_at: string
 }
@@ -113,7 +116,24 @@ export type Pago = {
   fecha_pago: string | null
   estado: EstadoPago
   expensas_pagadas: boolean
+  porcentaje_comision_aplicado: number
+  monto_comision: number
+  monto_neto: number
   notas: string | null
+  created_at: string
+}
+
+export type Liquidacion = {
+  id: string
+  dueno_id: string
+  periodo: string // YYYY-MM-01
+  monto_bruto: number
+  monto_comision: number
+  monto_neto: number
+  cant_propiedades: number
+  estado: EstadoLiquidacion
+  enviada_at: string | null
+  generada_por: string | null
   created_at: string
 }
 
@@ -172,6 +192,7 @@ export type Database = {
       usuarios_equipo: TableDef<UsuarioEquipo>
       notificaciones: TableDef<Notificacion>
       contratos_generados: TableDef<ContratoGenerado>
+      liquidaciones: TableDef<Liquidacion>
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -181,6 +202,7 @@ export type Database = {
       tipo_indice: TipoIndice
       estado_contrato: EstadoContrato
       estado_pago: EstadoPago
+      estado_liquidacion: EstadoLiquidacion
       rol_usuario: RolUsuario
       tipo_notificacion: TipoNotificacion
     }

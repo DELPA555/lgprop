@@ -1,13 +1,23 @@
 import { useEffect, useState } from 'react'
-import { CalendarClock, TrendingUp, AlertTriangle, Receipt, DatabaseZap } from 'lucide-react'
+import {
+  CalendarClock,
+  TrendingUp,
+  AlertTriangle,
+  Receipt,
+  DatabaseZap,
+  HandCoins
+} from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import PageHeader from '@/components/PageHeader'
+import { formatARS } from '@/lib/format'
 
 interface Metrics {
   vencimientos: number
   actualizaciones: number
   pagosAtrasados: number
   expensasPendientes: number
+  comisionMes: number
+  comisionAnio: number
 }
 
 function addDaysISO(days: number): string {
@@ -99,8 +109,34 @@ export default function Dashboard(): JSX.Element {
             .eq('expensas_pagadas', false)
         )
       ])
+      // Comisiones cobradas (suma de monto_comision de pagos cobrados)
+      const yearStart = `${new Date().getFullYear()}-01-01`
+      const monthStartISO = `${todayISO().slice(0, 7)}-01`
+      let comisionMes = 0
+      let comisionAnio = 0
+      try {
+        const { data: comPagos } = await supabase
+          .from('pagos')
+          .select('monto_comision, mes_correspondiente')
+          .eq('estado', 'pagado')
+          .gte('mes_correspondiente', yearStart)
+        for (const p of comPagos ?? []) {
+          comisionAnio += p.monto_comision ?? 0
+          if (p.mes_correspondiente === monthStartISO) comisionMes += p.monto_comision ?? 0
+        }
+      } catch {
+        // sin datos
+      }
+
       if (!alive) return
-      setMetrics({ vencimientos, actualizaciones, pagosAtrasados, expensasPendientes })
+      setMetrics({
+        vencimientos,
+        actualizaciones,
+        pagosAtrasados,
+        expensasPendientes,
+        comisionMes,
+        comisionAnio
+      })
       setLoading(false)
     })()
     return () => {
@@ -146,10 +182,32 @@ export default function Dashboard(): JSX.Element {
         ))}
       </div>
 
-      <div className="card p-6 mt-5">
-        <p className="text-sm text-zinc-400">
-          Próximamente: listas detalladas de vencimientos, actualizaciones por confirmar y mora.
-        </p>
+      {/* Comisiones cobradas */}
+      <div className="grid grid-cols-2 gap-4 mt-4">
+        <div className="card p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              Comisiones cobradas · este mes
+            </span>
+            <HandCoins className="text-emerald-400" size={18} />
+          </div>
+          <div className="text-3xl font-bold text-white mt-3 tabular-nums">
+            {loading ? '—' : formatARS(metrics?.comisionMes ?? 0)}
+          </div>
+          <div className="text-[11px] text-zinc-600 mt-1">Comisión retenida de pagos cobrados</div>
+        </div>
+        <div className="card p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-zinc-500 uppercase tracking-wider">
+              Comisiones cobradas · este año
+            </span>
+            <HandCoins className="text-emerald-400" size={18} />
+          </div>
+          <div className="text-3xl font-bold text-white mt-3 tabular-nums">
+            {loading ? '—' : formatARS(metrics?.comisionAnio ?? 0)}
+          </div>
+          <div className="text-[11px] text-zinc-600 mt-1">Acumulado del año en curso</div>
+        </div>
       </div>
     </div>
   )

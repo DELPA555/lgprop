@@ -18,6 +18,7 @@ const EMPTY: Form = {
   estado: 'vacia',
   monto_expensas: 0,
   paga_expensas: 'inquilino',
+  porcentaje_comision: null,
   notas: ''
 }
 
@@ -99,6 +100,10 @@ export default function Propiedades(): JSX.Element {
       estado: (form.estado ?? 'vacia') as EstadoPropiedad,
       monto_expensas: Number(form.monto_expensas) || 0,
       paga_expensas: (form.paga_expensas ?? 'inquilino') as PagaExpensas,
+      porcentaje_comision:
+        form.porcentaje_comision === null || form.porcentaje_comision === undefined
+          ? null
+          : Number(form.porcentaje_comision),
       notas: form.notas || null
     }
     const { error } = editing
@@ -165,19 +170,20 @@ export default function Propiedades(): JSX.Element {
               <th className="px-4 py-3 font-medium">Dueño</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium text-right">Expensas</th>
+              <th className="px-4 py-3 font-medium text-center">Comisión</th>
               <th className="px-4 py-3 font-medium text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={7} className="px-4 py-10 text-center text-zinc-600">
                   Cargando…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={7} className="px-4 py-10 text-center text-zinc-600">
                   {rows.length === 0 ? 'Todavía no hay propiedades cargadas.' : 'Sin resultados.'}
                 </td>
               </tr>
@@ -204,6 +210,13 @@ export default function Propiedades(): JSX.Element {
                       </>
                     ) : (
                       '—'
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center tabular-nums">
+                    {d.porcentaje_comision != null ? (
+                      <span className="text-zinc-300">{d.porcentaje_comision}%</span>
+                    ) : (
+                      <span className="text-[11px] text-zinc-600">hereda</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -314,6 +327,22 @@ export default function Propiedades(): JSX.Element {
               </Select>
             </Field>
           </div>
+          <Field label="Comisión (%) — dejar vacío para heredar la del dueño">
+            <TextInput
+              type="number"
+              min={0}
+              max={100}
+              step={0.5}
+              placeholder="Hereda del dueño"
+              value={form.porcentaje_comision ?? ''}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  porcentaje_comision: e.target.value === '' ? null : Number(e.target.value)
+                }))
+              }
+            />
+          </Field>
           <Field label="Notas">
             <TextArea
               value={form.notas ?? ''}

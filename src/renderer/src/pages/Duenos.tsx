@@ -10,7 +10,15 @@ import { Field, TextInput, TextArea } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
 
 type Form = Partial<Dueno>
-const EMPTY: Form = { nombre: '', telefono: '', email: '', cbu: '', alias_cbu: '', notas: '' }
+const EMPTY: Form = {
+  nombre: '',
+  telefono: '',
+  email: '',
+  cbu: '',
+  alias_cbu: '',
+  porcentaje_comision: 0,
+  notas: ''
+}
 
 export default function Duenos(): JSX.Element {
   const toast = useToast()
@@ -79,6 +87,7 @@ export default function Duenos(): JSX.Element {
       email: form.email || null,
       cbu: form.cbu || null,
       alias_cbu: form.alias_cbu || null,
+      porcentaje_comision: Number(form.porcentaje_comision) || 0,
       notas: form.notas || null
     }
     const { error } = editing
@@ -143,6 +152,7 @@ export default function Duenos(): JSX.Element {
               <th className="px-4 py-3 font-medium">Nombre</th>
               <th className="px-4 py-3 font-medium">Contacto</th>
               <th className="px-4 py-3 font-medium">Datos de cobro</th>
+              <th className="px-4 py-3 font-medium text-center">Comisión</th>
               <th className="px-4 py-3 font-medium text-center">Propiedades</th>
               <th className="px-4 py-3 font-medium text-right">Acciones</th>
             </tr>
@@ -150,13 +160,13 @@ export default function Duenos(): JSX.Element {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={6} className="px-4 py-10 text-center text-zinc-600">
                   Cargando…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={6} className="px-4 py-10 text-center text-zinc-600">
                   {rows.length === 0 ? 'Todavía no hay dueños cargados.' : 'Sin resultados.'}
                 </td>
               </tr>
@@ -177,6 +187,9 @@ export default function Duenos(): JSX.Element {
                     ) : (
                       '—'
                     )}
+                  </td>
+                  <td className="px-4 py-3 text-center text-zinc-300 tabular-nums">
+                    {d.porcentaje_comision ? `${d.porcentaje_comision}%` : '—'}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className="inline-flex items-center gap-1 text-zinc-300">
@@ -264,6 +277,18 @@ export default function Duenos(): JSX.Element {
               />
             </Field>
           </div>
+          <Field label="Comisión por administración (%)">
+            <TextInput
+              type="number"
+              min={0}
+              max={100}
+              step={0.5}
+              value={form.porcentaje_comision ?? 0}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, porcentaje_comision: Number(e.target.value) }))
+              }
+            />
+          </Field>
           <Field label="Notas">
             <TextArea
               value={form.notas ?? ''}

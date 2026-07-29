@@ -9,6 +9,7 @@ import {
   Calculator,
   TrendingUp,
   Wallet,
+  HandCoins,
   ShieldCheck,
   LogOut
 } from 'lucide-react'
@@ -23,6 +24,7 @@ const NAV = [
   { to: '/actualizaciones', label: 'Actualizaciones', Icon: Calculator, adminOnly: false },
   { to: '/indices', label: 'Índices', Icon: TrendingUp, adminOnly: false },
   { to: '/pagos', label: 'Pagos', Icon: Wallet, adminOnly: false },
+  { to: '/liquidaciones', label: 'Liquidaciones', Icon: HandCoins, adminOnly: false },
   { to: '/equipo', label: 'Equipo', Icon: ShieldCheck, adminOnly: true }
 ]
 
