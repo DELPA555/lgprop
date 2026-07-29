@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Pencil, Trash2, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Pencil, Trash2, Search, Eye } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type { Propiedad, Dueno, EstadoPropiedad, PagaExpensas } from '@/types/database'
 import PageHeader from '@/components/PageHeader'
@@ -29,6 +30,7 @@ const ESTADO_BADGE: Record<EstadoPropiedad, string> = {
 
 export default function Propiedades(): JSX.Element {
   const toast = useToast()
+  const navigate = useNavigate()
   const [rows, setRows] = useState<Propiedad[]>([])
   const [duenos, setDuenos] = useState<Dueno[]>([])
   const [loading, setLoading] = useState(true)
@@ -190,7 +192,14 @@ export default function Propiedades(): JSX.Element {
             ) : (
               filtered.map((d) => (
                 <tr key={d.id} className="border-b border-border/60 hover:bg-white/[0.02]">
-                  <td className="px-4 py-3 text-white font-medium">{d.direccion}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <button
+                      onClick={() => navigate(`/propiedades/${d.id}`)}
+                      className="text-white hover:text-accent text-left"
+                    >
+                      {d.direccion}
+                    </button>
+                  </td>
                   <td className="px-4 py-3 text-zinc-400">{d.tipo || '—'}</td>
                   <td className="px-4 py-3 text-zinc-400">
                     {d.dueno_id ? duenoNombre[d.dueno_id] ?? '—' : '—'}
@@ -221,6 +230,13 @@ export default function Propiedades(): JSX.Element {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => navigate(`/propiedades/${d.id}`)}
+                        className="p-1.5 rounded-md text-zinc-400 hover:text-white hover:bg-white/5"
+                        title="Ver detalle"
+                      >
+                        <Eye size={15} />
+                      </button>
                       <button
                         onClick={() => openEdit(d)}
                         className="p-1.5 rounded-md text-zinc-400 hover:text-white hover:bg-white/5"

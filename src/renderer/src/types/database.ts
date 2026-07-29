@@ -19,6 +19,7 @@ export type TipoIndice =
 export type EstadoContrato = 'activo' | 'vencido' | 'rescindido'
 export type EstadoPago = 'pagado' | 'pendiente' | 'atrasado'
 export type EstadoLiquidacion = 'pendiente' | 'enviada'
+export type EstadoMantenimiento = 'pendiente' | 'en_proceso' | 'resuelto'
 export type RolUsuario = 'admin' | 'operador'
 export type TipoNotificacion =
   | 'vencimiento_contrato'
@@ -148,6 +149,18 @@ export type ContratoGenerado = {
   created_at: string
 }
 
+export type Mantenimiento = {
+  id: string
+  propiedad_id: string
+  fecha_reporte: string
+  descripcion: string
+  estado: EstadoMantenimiento
+  fecha_resolucion: string | null
+  costo: number | null
+  notas: string | null
+  created_at: string
+}
+
 export type UsuarioEquipo = {
   id: string
   auth_user_id: string
@@ -193,6 +206,7 @@ export type Database = {
       notificaciones: TableDef<Notificacion>
       contratos_generados: TableDef<ContratoGenerado>
       liquidaciones: TableDef<Liquidacion>
+      mantenimiento: TableDef<Mantenimiento>
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -203,6 +217,7 @@ export type Database = {
       estado_contrato: EstadoContrato
       estado_pago: EstadoPago
       estado_liquidacion: EstadoLiquidacion
+      estado_mantenimiento: EstadoMantenimiento
       rol_usuario: RolUsuario
       tipo_notificacion: TipoNotificacion
     }

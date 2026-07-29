@@ -10,6 +10,7 @@ import {
   TrendingUp,
   Wallet,
   HandCoins,
+  Wrench,
   ShieldCheck,
   LogOut
 } from 'lucide-react'
@@ -20,6 +21,7 @@ const NAV = [
   { to: '/propiedades', label: 'Propiedades', Icon: Building2, adminOnly: false },
   { to: '/duenos', label: 'Dueños', Icon: Users, adminOnly: false },
   { to: '/inquilinos', label: 'Inquilinos', Icon: UserSquare2, adminOnly: false },
+  { to: '/mantenimiento', label: 'Mantenimiento', Icon: Wrench, adminOnly: false },
   { to: '/contratos', label: 'Contratos', Icon: FileText, adminOnly: false },
   { to: '/actualizaciones', label: 'Actualizaciones', Icon: Calculator, adminOnly: false },
   { to: '/indices', label: 'Índices', Icon: TrendingUp, adminOnly: false },

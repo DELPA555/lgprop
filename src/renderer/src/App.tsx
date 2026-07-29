@@ -10,7 +10,9 @@ import Dashboard from './pages/Dashboard'
 import Duenos from './pages/Duenos'
 import Inquilinos from './pages/Inquilinos'
 import Propiedades from './pages/Propiedades'
+import PropiedadDetalle from './pages/PropiedadDetalle'
 import Contratos from './pages/Contratos'
+import Mantenimiento from './pages/Mantenimiento'
 import Indices from './pages/Indices'
 import Actualizaciones from './pages/Actualizaciones'
 import Pagos from './pages/Pagos'
@@ -64,6 +66,8 @@ function AppRoutes(): JSX.Element {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/propiedades" element={<Propiedades />} />
+        <Route path="/propiedades/:id" element={<PropiedadDetalle />} />
+        <Route path="/mantenimiento" element={<Mantenimiento />} />
         <Route path="/duenos" element={<Duenos />} />
         <Route path="/inquilinos" element={<Inquilinos />} />
         <Route path="/contratos" element={<Contratos />} />

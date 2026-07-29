@@ -195,6 +195,18 @@ Migración: `supabase/migrations/0005_comision_liquidacion.sql`.
   liquidación se marca **pendiente / enviada** (tabla `liquidaciones`, única por dueño+período).
 - **Dashboard:** KPIs de *Comisiones cobradas* del mes y del año en curso.
 
+## Mantenimiento / Reclamos
+
+Migración: `supabase/migrations/0006_mantenimiento.sql` (tabla `mantenimiento`:
+`propiedad_id`, `fecha_reporte`, `descripcion`, `estado` pendiente/en_proceso/resuelto,
+`fecha_resolucion`, `costo` opcional).
+
+- **Detalle de propiedad** (`/propiedades/:id`, se abre con el nombre o el ícono 👁 en la
+  lista): muestra los datos de la propiedad y su historial de reclamos, con carga/edición
+  y cambio de estado inline.
+- **Módulo Mantenimiento** (`/mantenimiento`): todos los reclamos de todas las propiedades,
+  con filtro por estado (arranca en *pendientes*) y búsqueda; enlace a la propiedad.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).
