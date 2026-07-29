@@ -180,6 +180,12 @@ export type SeguroPropiedad = {
   created_at: string
 }
 
+export type Configuracion = {
+  clave: string
+  valor: string
+  updated_at: string
+}
+
 export type UsuarioEquipo = {
   id: string
   auth_user_id: string
@@ -227,6 +233,7 @@ export type Database = {
       liquidaciones: TableDef<Liquidacion>
       mantenimiento: TableDef<Mantenimiento>
       seguros_propiedad: TableDef<SeguroPropiedad>
+      configuracion: TableDef<Configuracion>
     }
     Views: Record<string, never>
     Functions: Record<string, never>

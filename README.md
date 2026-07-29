@@ -252,6 +252,19 @@ Migración: `supabase/migrations/0009_motivo_finalizacion.sql` (agrega
 - En el **modal de contrato**, cuando el estado no es *activo*, aparece el campo
   *Motivo de finalización* (mudanza, no renovación, falta de pago, venta, etc.).
 
+## Ajustes — antelación de avisos
+
+Migración: `supabase/migrations/0010_configuracion.sql` (tabla `configuracion` clave/valor;
+lectura para miembros activos, escritura solo admin; seed
+`avisos_dias_anticipacion_contrato = 60`).
+
+- Pantalla **Ajustes** (`/ajustes`, solo admin): elegí con cuántos días de anticipación
+  avisar el vencimiento de **contratos y seguros** (presets 30 / 60 / 90 o un valor
+  personalizado).
+- **`enviar-avisos`** lee ese valor (default 60) y lo aplica a los vencimientos de contrato
+  y de seguros. **Redeployar** tras la migración: `supabase functions deploy enviar-avisos`.
+  *(La tarjeta “Vencen en 60 días” del Dashboard es un indicador visual fijo.)*
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).

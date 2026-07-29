@@ -79,14 +79,26 @@ Deno.serve(async () => {
 
   const pendientes: NuevaNotif[] = []
 
-  // 1) Vencimientos dentro de 60 días
+  // Días de anticipación configurables (Ajustes → default 60)
+  let diasAnticipacion = 60
+  {
+    const { data } = await supabase
+      .from('configuracion')
+      .select('valor')
+      .eq('clave', 'avisos_dias_anticipacion_contrato')
+      .maybeSingle()
+    const n = parseInt(data?.valor ?? '', 10)
+    if (Number.isFinite(n) && n > 0) diasAnticipacion = n
+  }
+
+  // 1) Vencimientos de contrato dentro de la anticipación configurada
   {
     const { data } = await supabase
       .from('contratos')
       .select('id, fecha_fin, propiedades(direccion)')
       .eq('estado', 'activo')
       .gte('fecha_fin', HOY)
-      .lte('fecha_fin', enDias(60))
+      .lte('fecha_fin', enDias(diasAnticipacion))
     for (const c of data ?? []) {
       const dir = (c as any).propiedades?.direccion ?? 'la propiedad'
       pendientes.push({
@@ -172,13 +184,13 @@ Deno.serve(async () => {
     }
   }
 
-  // 6) Seguros / ART por vencer (mismo criterio de días que contratos: dentro de 60)
+  // 6) Seguros / ART por vencer (misma anticipación configurada que los contratos)
   {
     const { data } = await supabase
       .from('seguros_propiedad')
       .select('id, tipo, aseguradora, fecha_vencimiento, propiedades(direccion)')
       .gte('fecha_vencimiento', HOY)
-      .lte('fecha_vencimiento', enDias(60))
+      .lte('fecha_vencimiento', enDias(diasAnticipacion))
     for (const s of data ?? []) {
       const dir = (s as any).propiedades?.direccion ?? 'la propiedad'
       const nombre = s.tipo === 'art' ? 'La ART' : s.tipo === 'seguro' ? 'El seguro' : 'La póliza'

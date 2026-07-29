@@ -12,6 +12,7 @@ import {
   HandCoins,
   Wrench,
   ShieldCheck,
+  Settings,
   LogOut
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
@@ -27,7 +28,8 @@ const NAV = [
   { to: '/indices', label: 'Índices', Icon: TrendingUp, adminOnly: false },
   { to: '/pagos', label: 'Pagos', Icon: Wallet, adminOnly: false },
   { to: '/liquidaciones', label: 'Liquidaciones', Icon: HandCoins, adminOnly: false },
-  { to: '/equipo', label: 'Equipo', Icon: ShieldCheck, adminOnly: true }
+  { to: '/equipo', label: 'Equipo', Icon: ShieldCheck, adminOnly: true },
+  { to: '/ajustes', label: 'Ajustes', Icon: Settings, adminOnly: true }
 ]
 
 export default function Sidebar(): JSX.Element {
