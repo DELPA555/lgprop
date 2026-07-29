@@ -241,6 +241,17 @@ fecha de pago, propiedad, dueño, inquilino, bruto, comisión, neto y estado de 
 Filtrable por rango: **mes / trimestre / año actual** o **personalizado** (desde–hasta por mes).
 No requiere migración.
 
+## Historial de inquilinos por propiedad
+
+Migración: `supabase/migrations/0009_motivo_finalizacion.sql` (agrega
+`contratos.motivo_finalizacion`, texto libre opcional).
+
+- En el **detalle de propiedad** (`/propiedades/:id`), la sección *Inquilinos / contratos*
+  lista **todos** los contratos (el activo marcado como *actual* + los anteriores) con
+  inquilino, período, monto, estado y motivo de finalización.
+- En el **modal de contrato**, cuando el estado no es *activo*, aparece el campo
+  *Motivo de finalización* (mudanza, no renovación, falta de pago, venta, etc.).
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).

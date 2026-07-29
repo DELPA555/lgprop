@@ -79,6 +79,7 @@ const EMPTY: Form = {
   monto_deposito: 0,
   estado_deposito: 'retenido',
   fecha_devolucion_deposito: null,
+  motivo_finalizacion: null,
   notas: ''
 }
 
@@ -394,6 +395,7 @@ export default function Contratos(): JSX.Element {
         form.estado_deposito === 'devuelto'
           ? form.fecha_devolucion_deposito || todayISO()
           : null,
+      motivo_finalizacion: form.estado !== 'activo' ? form.motivo_finalizacion || null : null,
       notas: form.notas || null
     }
     const { error } = editing
@@ -832,6 +834,17 @@ export default function Contratos(): JSX.Element {
                 </Select>
               </Field>
             </div>
+            {form.estado !== 'activo' && (
+              <div className="mt-3">
+                <Field label="Motivo de finalización (opcional)">
+                  <TextInput
+                    placeholder="Ej: mudanza, no renovación, falta de pago, venta…"
+                    value={form.motivo_finalizacion ?? ''}
+                    onChange={(e) => patch({ motivo_finalizacion: e.target.value || null })}
+                  />
+                </Field>
+              </div>
+            )}
             {idx === 'Manual' && (
               <p className="text-[11px] text-zinc-600 mt-2">
                 Con índice manual, el nuevo monto se carga a mano en cada actualización.

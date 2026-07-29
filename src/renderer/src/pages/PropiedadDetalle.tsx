@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Pencil, Trash2, Wrench, Loader2, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, Wrench, Loader2, ShieldCheck, Users } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type {
   Propiedad,
   Dueno,
   Mantenimiento,
   EstadoMantenimiento,
-  SeguroPropiedad
+  SeguroPropiedad,
+  Contrato,
+  Inquilino,
+  EstadoContrato
 } from '@/types/database'
 import ConfigNotice from '@/components/ConfigNotice'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
@@ -17,6 +20,12 @@ import { daysUntil } from '@/lib/dates'
 import MantenimientoModal, { MANT_ESTADOS } from '@/components/MantenimientoModal'
 import SeguroModal, { seguroTipoLabel } from '@/components/SeguroModal'
 
+const ESTADO_CONTRATO_BADGE: Record<EstadoContrato, string> = {
+  activo: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  vencido: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  rescindido: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
+}
+
 export default function PropiedadDetalle(): JSX.Element {
   const { id = '' } = useParams()
   const navigate = useNavigate()
@@ -25,6 +34,8 @@ export default function PropiedadDetalle(): JSX.Element {
   const [dueno, setDueno] = useState<Dueno | null>(null)
   const [reclamos, setReclamos] = useState<Mantenimiento[]>([])
   const [seguros, setSeguros] = useState<SeguroPropiedad[]>([])
+  const [contratos, setContratos] = useState<Contrato[]>([])
+  const [inqMap, setInqMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Mantenimiento | null>(null)
@@ -60,6 +71,24 @@ export default function PropiedadDetalle(): JSX.Element {
       .eq('propiedad_id', id)
       .order('fecha_vencimiento')
     setSeguros(seg ?? [])
+    const { data: ctr } = await supabase
+      .from('contratos')
+      .select('*')
+      .eq('propiedad_id', id)
+      .order('fecha_inicio', { ascending: false })
+    setContratos(ctr ?? [])
+    const inqIds = [...new Set((ctr ?? []).map((c) => c.inquilino_id))]
+    if (inqIds.length > 0) {
+      const { data: inqs } = await supabase
+        .from('inquilinos')
+        .select('id, nombre')
+        .in('id', inqIds)
+      const m: Record<string, string> = {}
+      for (const i of inqs ?? []) m[i.id] = i.nombre
+      setInqMap(m)
+    } else {
+      setInqMap({})
+    }
     setLoading(false)
   }
 
@@ -166,6 +195,60 @@ export default function PropiedadDetalle(): JSX.Element {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Historial de inquilinos / contratos */}
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
+            <Users size={16} className="text-zinc-400" /> Inquilinos / contratos
+          </h2>
+          <div className="card overflow-hidden mb-6">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-zinc-500 uppercase tracking-wider border-b border-border">
+                  <th className="px-4 py-3 font-medium">Inquilino</th>
+                  <th className="px-4 py-3 font-medium">Período</th>
+                  <th className="px-4 py-3 font-medium text-right">Monto</th>
+                  <th className="px-4 py-3 font-medium">Estado</th>
+                  <th className="px-4 py-3 font-medium">Motivo de finalización</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contratos.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-10 text-center text-zinc-600">
+                      Sin contratos cargados para esta propiedad.
+                    </td>
+                  </tr>
+                ) : (
+                  contratos.map((c) => (
+                    <tr key={c.id} className="border-b border-border/60 hover:bg-white/[0.02]">
+                      <td className="px-4 py-3 text-white">
+                        {inqMap[c.inquilino_id] ?? '—'}
+                        {c.estado === 'activo' && (
+                          <span className="ml-2 text-[10px] text-emerald-400">actual</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400 text-xs whitespace-nowrap">
+                        {formatDate(c.fecha_inicio)} → {formatDate(c.fecha_fin)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-zinc-300 tabular-nums">
+                        {formatARS(c.monto_actual)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-xs border capitalize ${ESTADO_CONTRATO_BADGE[c.estado]}`}
+                        >
+                          {c.estado}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-400 text-xs">
+                        {c.motivo_finalizacion || '—'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
 
           {/* Mantenimiento / reclamos */}
