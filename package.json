@@ -57,7 +57,8 @@
           ]
         }
       ],
-      "artifactName": "LG-Prop-Setup-${version}.${ext}"
+      "artifactName": "LG-Prop-Setup-${version}.${ext}",
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
