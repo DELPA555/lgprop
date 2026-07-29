@@ -1,0 +1,14 @@
+node_modules/
+out/
+dist/
+dist-installer/
+*.log
+.DS_Store
+
+# Variables de entorno (nunca commitear credenciales)
+.env
+.env.local
+.env.*.local
+
+# Supabase
+supabase/.temp/
