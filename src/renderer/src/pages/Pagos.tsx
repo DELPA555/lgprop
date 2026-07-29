@@ -9,6 +9,7 @@ import { Field, TextInput, TextArea, Select } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
 import { formatARS, formatDate } from '@/lib/format'
 import { todayISO } from '@/lib/dates'
+import ExportarContableButton from '@/components/ExportarContableButton'
 
 const currentYM = (): string => todayISO().slice(0, 7)
 const monthStart = (ym: string): string => `${ym}-01`
@@ -191,14 +192,17 @@ export default function Pagos(): JSX.Element {
         title="Pagos"
         subtitle="Registro mensual de alquileres"
         actions={
-          <button
-            onClick={generar}
-            disabled={generating}
-            className="btn-primary flex items-center gap-2 text-sm"
-          >
-            {generating ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-            Generar cuotas del mes
-          </button>
+          <div className="flex items-center gap-2">
+            <ExportarContableButton defaultYM={ym} />
+            <button
+              onClick={generar}
+              disabled={generating}
+              className="btn-primary flex items-center gap-2 text-sm"
+            >
+              {generating ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+              Generar cuotas del mes
+            </button>
+          </div>
         }
       />
 

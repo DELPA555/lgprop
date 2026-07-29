@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/Toast'
 import { formatARS, formatDate } from '@/lib/format'
 import { todayISO } from '@/lib/dates'
 import { generarLiquidacionPDF, type LiquidacionLinea } from '@/lib/liquidacionPdf'
+import ExportarContableButton from '@/components/ExportarContableButton'
 
 const MESES = [
   'Enero',
@@ -232,7 +233,11 @@ export default function Liquidaciones(): JSX.Element {
 
   return (
     <div className="p-6">
-      <PageHeader title="Liquidaciones" subtitle="Comisión retenida y neto a transferir por dueño" />
+      <PageHeader
+        title="Liquidaciones"
+        subtitle="Comisión retenida y neto a transferir por dueño"
+        actions={<ExportarContableButton defaultYM={ym} />}
+      />
 
       {!isSupabaseConfigured && <ConfigNotice />}
 

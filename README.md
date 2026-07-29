@@ -233,6 +233,14 @@ Migración: `supabase/migrations/0008_seguros.sql` (tabla `seguros_propiedad`:
   días (mismo criterio que los contratos). Dedup por seguro vía `metadata.seguro_id`.
   **Redeployar** tras la migración: `supabase functions deploy enviar-avisos`.
 
+## Exportación contable
+
+Botón **Exportar** en **Pagos** y en **Liquidaciones** (`lib/exportContable.ts`): genera un
+**CSV** (separador `;` + BOM UTF-8, abre directo en Excel en español) con columnas *período,
+fecha de pago, propiedad, dueño, inquilino, bruto, comisión, neto y estado de pago*.
+Filtrable por rango: **mes / trimestre / año actual** o **personalizado** (desde–hasta por mes).
+No requiere migración.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).
