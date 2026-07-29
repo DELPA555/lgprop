@@ -34,12 +34,21 @@ type Tipo =
   | 'actualizacion_monto'
   | 'pago_atrasado'
   | 'expensas_pendientes'
+  | 'deposito_pendiente'
+  | 'seguro_por_vencer'
 
 interface NuevaNotif {
   tipo: Tipo
   contrato_id: string | null
   titulo: string
   mensaje: string
+  metadata?: Record<string, unknown>
+}
+
+// Clave de deduplicación: usa el contrato o, si no hay (ej. seguros), el id en metadata.
+function dedupeKey(n: { tipo: string; contrato_id: string | null; metadata?: Record<string, unknown> | null }): string {
+  const ref = n.contrato_id ?? (n.metadata?.seguro_id as string | undefined) ?? ''
+  return `${n.tipo}|${ref}`
 }
 
 async function enviarEmail(asunto: string, html: string): Promise<boolean> {
@@ -70,14 +79,26 @@ Deno.serve(async () => {
 
   const pendientes: NuevaNotif[] = []
 
-  // 1) Vencimientos dentro de 60 días
+  // Días de anticipación configurables (Ajustes → default 60)
+  let diasAnticipacion = 60
+  {
+    const { data } = await supabase
+      .from('configuracion')
+      .select('valor')
+      .eq('clave', 'avisos_dias_anticipacion_contrato')
+      .maybeSingle()
+    const n = parseInt(data?.valor ?? '', 10)
+    if (Number.isFinite(n) && n > 0) diasAnticipacion = n
+  }
+
+  // 1) Vencimientos de contrato dentro de la anticipación configurada
   {
     const { data } = await supabase
       .from('contratos')
       .select('id, fecha_fin, propiedades(direccion)')
       .eq('estado', 'activo')
       .gte('fecha_fin', HOY)
-      .lte('fecha_fin', enDias(60))
+      .lte('fecha_fin', enDias(diasAnticipacion))
     for (const c of data ?? []) {
       const dir = (c as any).propiedades?.direccion ?? 'la propiedad'
       pendientes.push({
@@ -143,15 +164,56 @@ Deno.serve(async () => {
     }
   }
 
+  // 5) Depósitos pendientes de devolución (contratos finalizados, depósito retenido)
+  {
+    const { data } = await supabase
+      .from('contratos')
+      .select('id, monto_deposito, propiedades(direccion)')
+      .in('estado', ['vencido', 'rescindido'])
+      .eq('estado_deposito', 'retenido')
+      .gt('monto_deposito', 0)
+    for (const c of data ?? []) {
+      const dir = (c as any).propiedades?.direccion ?? 'la propiedad'
+      const monto = Number((c as any).monto_deposito || 0).toLocaleString('es-AR')
+      pendientes.push({
+        tipo: 'deposito_pendiente',
+        contrato_id: c.id,
+        titulo: `Depósito por devolver — ${dir}`,
+        mensaje: `El contrato de ${dir} está finalizado y el depósito en garantía ($${monto}) sigue retenido. Coordiná la devolución con el inquilino y marcá el depósito como devuelto en la app.`
+      })
+    }
+  }
+
+  // 6) Seguros / ART por vencer (misma anticipación configurada que los contratos)
+  {
+    const { data } = await supabase
+      .from('seguros_propiedad')
+      .select('id, tipo, aseguradora, fecha_vencimiento, propiedades(direccion)')
+      .gte('fecha_vencimiento', HOY)
+      .lte('fecha_vencimiento', enDias(diasAnticipacion))
+    for (const s of data ?? []) {
+      const dir = (s as any).propiedades?.direccion ?? 'la propiedad'
+      const nombre = s.tipo === 'art' ? 'La ART' : s.tipo === 'seguro' ? 'El seguro' : 'La póliza'
+      const aseg = (s as any).aseguradora ? ` (${(s as any).aseguradora})` : ''
+      pendientes.push({
+        tipo: 'seguro_por_vencer',
+        contrato_id: null,
+        metadata: { seguro_id: s.id },
+        titulo: `Seguro por vencer — ${dir}`,
+        mensaje: `${nombre}${aseg} de ${dir} vence el ${s.fecha_vencimiento}. Gestioná la renovación antes de esa fecha.`
+      })
+    }
+  }
+
   // Dedup contra notificaciones recientes sin leer
   const { data: recientes } = await supabase
     .from('notificaciones')
-    .select('tipo, contrato_id')
+    .select('tipo, contrato_id, metadata')
     .eq('leida', false)
     .gte('created_at', enDias(-25))
-  const yaExiste = new Set((recientes ?? []).map((r) => `${r.tipo}|${r.contrato_id}`))
+  const yaExiste = new Set((recientes ?? []).map((r) => dedupeKey(r as any)))
 
-  const aInsertar = pendientes.filter((n) => !yaExiste.has(`${n.tipo}|${n.contrato_id}`))
+  const aInsertar = pendientes.filter((n) => !yaExiste.has(dedupeKey(n)))
 
   let creadas = 0
   if (aInsertar.length > 0) {
@@ -167,7 +229,9 @@ Deno.serve(async () => {
       vencimiento_contrato: [],
       actualizacion_monto: [],
       pago_atrasado: [],
-      expensas_pendientes: []
+      expensas_pendientes: [],
+      deposito_pendiente: [],
+      seguro_por_vencer: []
     }
     for (const n of aInsertar) grupos[n.tipo].push(n)
 
@@ -175,7 +239,9 @@ Deno.serve(async () => {
       vencimiento_contrato: 'Contratos por vencer',
       actualizacion_monto: 'Actualizaciones de alquiler pendientes',
       pago_atrasado: 'Pagos por registrar',
-      expensas_pendientes: 'Expensas por conciliar'
+      expensas_pendientes: 'Expensas por conciliar',
+      deposito_pendiente: 'Depósitos por devolver',
+      seguro_por_vencer: 'Seguros / ART por vencer'
     }
 
     const secciones = (Object.keys(grupos) as Tipo[])

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Pencil, Trash2, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, Pencil, Trash2, Search, Eye } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type { Propiedad, Dueno, EstadoPropiedad, PagaExpensas } from '@/types/database'
 import PageHeader from '@/components/PageHeader'
@@ -18,6 +19,7 @@ const EMPTY: Form = {
   estado: 'vacia',
   monto_expensas: 0,
   paga_expensas: 'inquilino',
+  porcentaje_comision: null,
   notas: ''
 }
 
@@ -28,6 +30,7 @@ const ESTADO_BADGE: Record<EstadoPropiedad, string> = {
 
 export default function Propiedades(): JSX.Element {
   const toast = useToast()
+  const navigate = useNavigate()
   const [rows, setRows] = useState<Propiedad[]>([])
   const [duenos, setDuenos] = useState<Dueno[]>([])
   const [loading, setLoading] = useState(true)
@@ -99,6 +102,10 @@ export default function Propiedades(): JSX.Element {
       estado: (form.estado ?? 'vacia') as EstadoPropiedad,
       monto_expensas: Number(form.monto_expensas) || 0,
       paga_expensas: (form.paga_expensas ?? 'inquilino') as PagaExpensas,
+      porcentaje_comision:
+        form.porcentaje_comision === null || form.porcentaje_comision === undefined
+          ? null
+          : Number(form.porcentaje_comision),
       notas: form.notas || null
     }
     const { error } = editing
@@ -165,26 +172,34 @@ export default function Propiedades(): JSX.Element {
               <th className="px-4 py-3 font-medium">Dueño</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium text-right">Expensas</th>
+              <th className="px-4 py-3 font-medium text-center">Comisión</th>
               <th className="px-4 py-3 font-medium text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={7} className="px-4 py-10 text-center text-zinc-600">
                   Cargando…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={7} className="px-4 py-10 text-center text-zinc-600">
                   {rows.length === 0 ? 'Todavía no hay propiedades cargadas.' : 'Sin resultados.'}
                 </td>
               </tr>
             ) : (
               filtered.map((d) => (
                 <tr key={d.id} className="border-b border-border/60 hover:bg-white/[0.02]">
-                  <td className="px-4 py-3 text-white font-medium">{d.direccion}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <button
+                      onClick={() => navigate(`/propiedades/${d.id}`)}
+                      className="text-white hover:text-accent text-left"
+                    >
+                      {d.direccion}
+                    </button>
+                  </td>
                   <td className="px-4 py-3 text-zinc-400">{d.tipo || '—'}</td>
                   <td className="px-4 py-3 text-zinc-400">
                     {d.dueno_id ? duenoNombre[d.dueno_id] ?? '—' : '—'}
@@ -206,8 +221,22 @@ export default function Propiedades(): JSX.Element {
                       '—'
                     )}
                   </td>
+                  <td className="px-4 py-3 text-center tabular-nums">
+                    {d.porcentaje_comision != null ? (
+                      <span className="text-zinc-300">{d.porcentaje_comision}%</span>
+                    ) : (
+                      <span className="text-[11px] text-zinc-600">hereda</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => navigate(`/propiedades/${d.id}`)}
+                        className="p-1.5 rounded-md text-zinc-400 hover:text-white hover:bg-white/5"
+                        title="Ver detalle"
+                      >
+                        <Eye size={15} />
+                      </button>
                       <button
                         onClick={() => openEdit(d)}
                         className="p-1.5 rounded-md text-zinc-400 hover:text-white hover:bg-white/5"
@@ -314,6 +343,22 @@ export default function Propiedades(): JSX.Element {
               </Select>
             </Field>
           </div>
+          <Field label="Comisión (%) — dejar vacío para heredar la del dueño">
+            <TextInput
+              type="number"
+              min={0}
+              max={100}
+              step={0.5}
+              placeholder="Hereda del dueño"
+              value={form.porcentaje_comision ?? ''}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  porcentaje_comision: e.target.value === '' ? null : Number(e.target.value)
+                }))
+              }
+            />
+          </Field>
           <Field label="Notas">
             <TextArea
               value={form.notas ?? ''}

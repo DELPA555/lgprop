@@ -1,6 +1,6 @@
 {
   "name": "lgprop",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "LG Prop — Sistema de administración de alquileres inmobiliarios",
   "author": "LG Prop",
   "main": "./out/main/index.js",

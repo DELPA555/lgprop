@@ -9,7 +9,10 @@ import {
   Calculator,
   TrendingUp,
   Wallet,
+  HandCoins,
+  Wrench,
   ShieldCheck,
+  Settings,
   LogOut
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
@@ -19,11 +22,14 @@ const NAV = [
   { to: '/propiedades', label: 'Propiedades', Icon: Building2, adminOnly: false },
   { to: '/duenos', label: 'Dueños', Icon: Users, adminOnly: false },
   { to: '/inquilinos', label: 'Inquilinos', Icon: UserSquare2, adminOnly: false },
+  { to: '/mantenimiento', label: 'Mantenimiento', Icon: Wrench, adminOnly: false },
   { to: '/contratos', label: 'Contratos', Icon: FileText, adminOnly: false },
   { to: '/actualizaciones', label: 'Actualizaciones', Icon: Calculator, adminOnly: false },
   { to: '/indices', label: 'Índices', Icon: TrendingUp, adminOnly: false },
   { to: '/pagos', label: 'Pagos', Icon: Wallet, adminOnly: false },
-  { to: '/equipo', label: 'Equipo', Icon: ShieldCheck, adminOnly: true }
+  { to: '/liquidaciones', label: 'Liquidaciones', Icon: HandCoins, adminOnly: false },
+  { to: '/equipo', label: 'Equipo', Icon: ShieldCheck, adminOnly: true },
+  { to: '/ajustes', label: 'Ajustes', Icon: Settings, adminOnly: true }
 ]
 
 export default function Sidebar(): JSX.Element {

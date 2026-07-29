@@ -10,11 +10,15 @@ import Dashboard from './pages/Dashboard'
 import Duenos from './pages/Duenos'
 import Inquilinos from './pages/Inquilinos'
 import Propiedades from './pages/Propiedades'
+import PropiedadDetalle from './pages/PropiedadDetalle'
 import Contratos from './pages/Contratos'
+import Mantenimiento from './pages/Mantenimiento'
 import Indices from './pages/Indices'
 import Actualizaciones from './pages/Actualizaciones'
 import Pagos from './pages/Pagos'
+import Liquidaciones from './pages/Liquidaciones'
 import Equipo from './pages/Equipo'
+import Ajustes from './pages/Ajustes'
 
 function FullScreenConfig(): JSX.Element {
   return (
@@ -63,13 +67,17 @@ function AppRoutes(): JSX.Element {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/propiedades" element={<Propiedades />} />
+        <Route path="/propiedades/:id" element={<PropiedadDetalle />} />
+        <Route path="/mantenimiento" element={<Mantenimiento />} />
         <Route path="/duenos" element={<Duenos />} />
         <Route path="/inquilinos" element={<Inquilinos />} />
         <Route path="/contratos" element={<Contratos />} />
         <Route path="/actualizaciones" element={<Actualizaciones />} />
         <Route path="/indices" element={<Indices />} />
         <Route path="/pagos" element={<Pagos />} />
+        <Route path="/liquidaciones" element={<Liquidaciones />} />
         <Route path="/equipo" element={isAdmin ? <Equipo /> : <Navigate to="/" replace />} />
+        <Route path="/ajustes" element={isAdmin ? <Ajustes /> : <Navigate to="/" replace />} />
         <Route path="*" element={<Dashboard />} />
       </Routes>
     </Layout>

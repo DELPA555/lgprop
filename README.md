@@ -178,6 +178,93 @@ $env:GH_TOKEN = "ghp_tu_token_aca"
 > adjunto (lo sube `publish:win`; un Release hecho a mano no lo tiene) y que la versión
 > publicada sea **mayor** que la instalada.
 
+## Comisión y Liquidación a dueños
+
+Migración: `supabase/migrations/0005_comision_liquidacion.sql`.
+
+- **Porcentaje de comisión (modelo híbrido):**
+  - `duenos.porcentaje_comision` — valor por defecto del dueño.
+  - `propiedades.porcentaje_comision` — override por propiedad; **NULL = hereda del dueño**.
+- **Cálculo automático por pago:** un trigger (`trg_calc_comision_pago`) completa en cada
+  `pago` el `porcentaje_comision_aplicado`, el `monto_comision` (= monto × %) y el
+  `monto_neto` (= monto − comisión). Se recalcula al crear o editar el monto del pago.
+- **Módulo Liquidaciones** (`/liquidaciones`): por mes y por dueño muestra propiedades
+  administradas, bruto cobrado, comisión retenida y neto a transferir (sobre los pagos en
+  estado *cobrado*). Botón **Generar liquidación** → registra la liquidación y descarga un
+  **PDF** (dirección, período, bruto, comisión, neto, datos de transferencia, fecha). Cada
+  liquidación se marca **pendiente / enviada** (tabla `liquidaciones`, única por dueño+período).
+- **Dashboard:** KPIs de *Comisiones cobradas* del mes y del año en curso.
+
+## Mantenimiento / Reclamos
+
+Migración: `supabase/migrations/0006_mantenimiento.sql` (tabla `mantenimiento`:
+`propiedad_id`, `fecha_reporte`, `descripcion`, `estado` pendiente/en_proceso/resuelto,
+`fecha_resolucion`, `costo` opcional).
+
+- **Detalle de propiedad** (`/propiedades/:id`, se abre con el nombre o el ícono 👁 en la
+  lista): muestra los datos de la propiedad y su historial de reclamos, con carga/edición
+  y cambio de estado inline.
+- **Módulo Mantenimiento** (`/mantenimiento`): todos los reclamos de todas las propiedades,
+  con filtro por estado (arranca en *pendientes*) y búsqueda; enlace a la propiedad.
+
+## Garantías y depósitos
+
+Migración: `supabase/migrations/0007_deposito.sql` (agrega a `contratos`:
+`monto_deposito`, `estado_deposito` retenido/devuelto, `fecha_devolucion_deposito`; y el
+tipo de notificación `deposito_pendiente`).
+
+- En el **modal de contrato** hay una sección *Garantía / Depósito* (monto, estado, fecha de
+  devolución). Si el contrato está *vencido/rescindido* con el depósito aún *retenido*,
+  muestra una advertencia. En la lista, esos contratos llevan una marca “depósito a devolver”.
+- El motor **`enviar-avisos`** genera un recordatorio (`deposito_pendiente`) por cada contrato
+  finalizado con depósito retenido. **Redeployar** la función tras esta migración:
+  `supabase functions deploy enviar-avisos`.
+
+## Seguros / ART
+
+Migración: `supabase/migrations/0008_seguros.sql` (tabla `seguros_propiedad`:
+`propiedad_id`, `tipo` seguro/art/otro, `aseguradora`, `numero_poliza`,
+`fecha_vencimiento`; + tipo de notificación `seguro_por_vencer`).
+
+- En el **detalle de propiedad** (`/propiedades/:id`) hay una sección *Seguros / ART* para
+  cargar/editar seguros, con resaltado del vencimiento (amarillo si vence dentro de 60 días,
+  rojo si ya venció).
+- El motor **`enviar-avisos`** alerta por cada seguro que vence dentro de los próximos 60
+  días (mismo criterio que los contratos). Dedup por seguro vía `metadata.seguro_id`.
+  **Redeployar** tras la migración: `supabase functions deploy enviar-avisos`.
+
+## Exportación contable
+
+Botón **Exportar** en **Pagos** y en **Liquidaciones** (`lib/exportContable.ts`): genera un
+**CSV** (separador `;` + BOM UTF-8, abre directo en Excel en español) con columnas *período,
+fecha de pago, propiedad, dueño, inquilino, bruto, comisión, neto y estado de pago*.
+Filtrable por rango: **mes / trimestre / año actual** o **personalizado** (desde–hasta por mes).
+No requiere migración.
+
+## Historial de inquilinos por propiedad
+
+Migración: `supabase/migrations/0009_motivo_finalizacion.sql` (agrega
+`contratos.motivo_finalizacion`, texto libre opcional).
+
+- En el **detalle de propiedad** (`/propiedades/:id`), la sección *Inquilinos / contratos*
+  lista **todos** los contratos (el activo marcado como *actual* + los anteriores) con
+  inquilino, período, monto, estado y motivo de finalización.
+- En el **modal de contrato**, cuando el estado no es *activo*, aparece el campo
+  *Motivo de finalización* (mudanza, no renovación, falta de pago, venta, etc.).
+
+## Ajustes — antelación de avisos
+
+Migración: `supabase/migrations/0010_configuracion.sql` (tabla `configuracion` clave/valor;
+lectura para miembros activos, escritura solo admin; seed
+`avisos_dias_anticipacion_contrato = 60`).
+
+- Pantalla **Ajustes** (`/ajustes`, solo admin): elegí con cuántos días de anticipación
+  avisar el vencimiento de **contratos y seguros** (presets 30 / 60 / 90 o un valor
+  personalizado).
+- **`enviar-avisos`** lee ese valor (default 60) y lo aplica a los vencimientos de contrato
+  y de seguros. **Redeployar** tras la migración: `supabase functions deploy enviar-avisos`.
+  *(La tarjeta “Vencen en 60 días” del Dashboard es un indicador visual fijo.)*
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).
