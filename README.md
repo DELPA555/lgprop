@@ -119,6 +119,64 @@ Programar la ejecución automática: ejecutá `supabase/cron.sql` (usa `pg_cron`
 npm run build:win
 ```
 El instalador NSIS queda en `dist-installer/LG-Prop-Setup-<version>.exe`.
+Este comando compila **sin publicar** (build local para probar).
+
+## Actualización automática (auto-update)
+
+La app usa **electron-updater** contra los **GitHub Releases** de
+`https://github.com/DELPA555/lgprop`. Al abrir la app instalada, chequea si hay una
+versión más nueva publicada, la **descarga en segundo plano** y muestra un aviso:
+- *"Actualización disponible — se está descargando…"* (mientras baja).
+- *"Actualización lista — reiniciá para aplicarla"* con botón **Reiniciar ahora**.
+
+> El auto-update sólo funciona en la app **instalada** (no en `npm run dev`) y a partir
+> de la **primera versión que ya incluye el updater** (v0.3.0). Las apps instaladas con
+> v0.2.0 o anterior no se actualizan solas: hay que instalar la v0.3.0 una vez a mano.
+
+### Requisito por única vez: token de GitHub
+
+electron-builder necesita un **Personal Access Token (PAT)** con permiso para subir
+Releases. Dos opciones:
+
+- **Fine-grained token** (recomendado): en GitHub → *Settings → Developer settings →
+  Fine-grained tokens → Generate new token*. Repository access: **Only select
+  repositories → DELPA555/lgprop**. Permisos: **Contents → Read and write**
+  (y *Metadata → Read-only*, que se agrega solo).
+- **Classic token**: mismo lugar → *Tokens (classic)*, con el scope **`repo`** completo.
+
+**Dónde ponerlo (NUNCA en el repo):** como variable de entorno `GH_TOKEN` en tu
+terminal, sólo al momento de publicar. En PowerShell (Windows):
+
+```powershell
+$env:GH_TOKEN = "ghp_tu_token_aca"
+```
+
+(Esa variable dura sólo esa sesión de terminal. Si abrís otra, la volvés a setear.)
+
+### Publicar una versión nueva
+
+1. Subí la versión en `package.json` siguiendo **versionado semántico**
+   (`0.3.0` → `0.3.1` para un fix, `0.4.0` para features, etc.).
+2. Con el token seteado, corré:
+   ```powershell
+   npm run publish:win
+   ```
+   Esto compila y **sube automáticamente** el instalador + los archivos de update
+   (`latest.yml`, `.blockmap`) como un **Release** en GitHub con ese tag de versión.
+3. Listo: las apps ya instaladas lo detectan en el próximo arranque (o dentro de las
+   6 hs si quedan abiertas).
+
+### Verificar que el auto-update funciona
+
+1. Instalá una versión (ej. v0.3.0) con el `.exe` publicado y abrí la app.
+2. Subí la versión (ej. a v0.3.1), cambiá algo visible, y corré `npm run publish:win`.
+3. Volvé a abrir la app v0.3.0 ya instalada: en unos segundos aparece el aviso de
+   *"Actualización disponible"* y después *"Actualización lista"*. Reiniciá y quedás en
+   v0.3.1 (se ve en la versión que muestra la app).
+
+> Si no aparece: revisá que el Release en GitHub tenga el archivo **`latest.yml`**
+> adjunto (lo sube `publish:win`; un Release hecho a mano no lo tiene) y que la versión
+> publicada sea **mayor** que la instalada.
 
 ## Roles
 

@@ -1,6 +1,6 @@
 {
   "name": "lgprop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "LG Prop — Sistema de administración de alquileres inmobiliarios",
   "author": "LG Prop",
   "main": "./out/main/index.js",
@@ -12,11 +12,13 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "build:win": "electron-vite build && electron-builder --win",
-    "build:unpack": "electron-vite build && electron-builder --dir"
+    "build:unpack": "electron-vite build && electron-builder --dir",
+    "publish:win": "electron-vite build && electron-builder --win --publish always"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
     "date-fns": "^4.1.0",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^0.454.0",
     "pdf-lib": "^1.17.1",
     "react": "^18.3.1",
@@ -47,6 +49,14 @@
     "files": [
       "out/**/*",
       "resources/**/*"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "DELPA555",
+        "repo": "lgprop",
+        "releaseType": "release"
+      }
     ],
     "win": {
       "target": [

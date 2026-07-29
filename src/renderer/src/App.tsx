@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { DatabaseZap, LogOut, ShieldAlert, Loader2 } from 'lucide-react'
 import Layout from './components/layout/Layout'
+import UpdateNotice from './components/UpdateNotice'
 import { ToastProvider } from './components/ui/Toast'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { isSupabaseConfigured } from './lib/supabase/client'
@@ -97,6 +98,7 @@ export default function App(): JSX.Element {
       <AuthProvider>
         <Gate />
       </AuthProvider>
+      <UpdateNotice />
     </ToastProvider>
   )
 }
