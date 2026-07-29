@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Pencil, Trash2, Wrench, Loader2 } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, Wrench, Loader2, ShieldCheck } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
-import type { Propiedad, Dueno, Mantenimiento, EstadoMantenimiento } from '@/types/database'
+import type {
+  Propiedad,
+  Dueno,
+  Mantenimiento,
+  EstadoMantenimiento,
+  SeguroPropiedad
+} from '@/types/database'
 import ConfigNotice from '@/components/ConfigNotice'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { useToast } from '@/components/ui/Toast'
 import { formatARS, formatDate } from '@/lib/format'
+import { daysUntil } from '@/lib/dates'
 import MantenimientoModal, { MANT_ESTADOS } from '@/components/MantenimientoModal'
+import SeguroModal, { seguroTipoLabel } from '@/components/SeguroModal'
 
 export default function PropiedadDetalle(): JSX.Element {
   const { id = '' } = useParams()
@@ -16,11 +24,15 @@ export default function PropiedadDetalle(): JSX.Element {
   const [prop, setProp] = useState<Propiedad | null>(null)
   const [dueno, setDueno] = useState<Dueno | null>(null)
   const [reclamos, setReclamos] = useState<Mantenimiento[]>([])
+  const [seguros, setSeguros] = useState<SeguroPropiedad[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Mantenimiento | null>(null)
   const [delTarget, setDelTarget] = useState<Mantenimiento | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [seguroModalOpen, setSeguroModalOpen] = useState(false)
+  const [editingSeguro, setEditingSeguro] = useState<SeguroPropiedad | null>(null)
+  const [delSeguro, setDelSeguro] = useState<SeguroPropiedad | null>(null)
 
   const load = async (): Promise<void> => {
     if (!isSupabaseConfigured || !id) {
@@ -42,6 +54,12 @@ export default function PropiedadDetalle(): JSX.Element {
       .eq('propiedad_id', id)
       .order('fecha_reporte', { ascending: false })
     setReclamos(rec ?? [])
+    const { data: seg } = await supabase
+      .from('seguros_propiedad')
+      .select('*')
+      .eq('propiedad_id', id)
+      .order('fecha_vencimiento')
+    setSeguros(seg ?? [])
     setLoading(false)
   }
 
@@ -80,6 +98,17 @@ export default function PropiedadDetalle(): JSX.Element {
     if (error) return void toast.error(error.message)
     toast.success('Reclamo eliminado')
     setDelTarget(null)
+    void load()
+  }
+
+  const doDeleteSeguro = async (): Promise<void> => {
+    if (!delSeguro) return
+    setDeleting(true)
+    const { error } = await supabase.from('seguros_propiedad').delete().eq('id', delSeguro.id)
+    setDeleting(false)
+    if (error) return void toast.error(error.message)
+    toast.success('Seguro eliminado')
+    setDelSeguro(null)
     void load()
   }
 
@@ -234,8 +263,116 @@ export default function PropiedadDetalle(): JSX.Element {
               </tbody>
             </table>
           </div>
+
+          {/* Seguros / ART */}
+          <div className="flex items-center justify-between mb-3 mt-6">
+            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+              <ShieldCheck size={16} className="text-zinc-400" /> Seguros / ART
+            </h2>
+            <button
+              onClick={() => {
+                setEditingSeguro(null)
+                setSeguroModalOpen(true)
+              }}
+              className="btn-primary flex items-center gap-2 text-sm"
+            >
+              <Plus size={15} /> Nuevo seguro
+            </button>
+          </div>
+
+          <div className="card overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-zinc-500 uppercase tracking-wider border-b border-border">
+                  <th className="px-4 py-3 font-medium">Tipo</th>
+                  <th className="px-4 py-3 font-medium">Aseguradora</th>
+                  <th className="px-4 py-3 font-medium">Póliza</th>
+                  <th className="px-4 py-3 font-medium">Vencimiento</th>
+                  <th className="px-4 py-3 font-medium text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seguros.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-10 text-center text-zinc-600">
+                      Sin seguros cargados para esta propiedad.
+                    </td>
+                  </tr>
+                ) : (
+                  seguros.map((s) => {
+                    const dLeft = daysUntil(s.fecha_vencimiento)
+                    const vencido = dLeft !== null && dLeft < 0
+                    const porVencer = dLeft !== null && dLeft >= 0 && dLeft <= 60
+                    return (
+                      <tr key={s.id} className="border-b border-border/60 hover:bg-white/[0.02]">
+                        <td className="px-4 py-3 text-zinc-200">{seguroTipoLabel(s.tipo)}</td>
+                        <td className="px-4 py-3 text-zinc-400">{s.aseguradora || '—'}</td>
+                        <td className="px-4 py-3 text-zinc-400">{s.numero_poliza || '—'}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={
+                              vencido
+                                ? 'text-red-400'
+                                : porVencer
+                                  ? 'text-amber-400'
+                                  : 'text-zinc-300'
+                            }
+                          >
+                            {formatDate(s.fecha_vencimiento)}
+                          </span>
+                          {vencido ? (
+                            <div className="text-[10px] text-red-400">vencido</div>
+                          ) : porVencer ? (
+                            <div className="text-[10px] text-amber-400">
+                              vence en {dLeft} día{dLeft !== 1 ? 's' : ''}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => {
+                                setEditingSeguro(s)
+                                setSeguroModalOpen(true)
+                              }}
+                              className="p-1.5 rounded-md text-zinc-400 hover:text-white hover:bg-white/5"
+                              title="Editar"
+                            >
+                              <Pencil size={15} />
+                            </button>
+                            <button
+                              onClick={() => setDelSeguro(s)}
+                              className="p-1.5 rounded-md text-zinc-400 hover:text-red-400 hover:bg-white/5"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
+
+      <SeguroModal
+        open={seguroModalOpen}
+        onClose={() => setSeguroModalOpen(false)}
+        editing={editingSeguro}
+        propiedadId={id}
+        onSaved={load}
+      />
+      <ConfirmDialog
+        open={!!delSeguro}
+        message="¿Eliminar este seguro? Esta acción no se puede deshacer."
+        onConfirm={doDeleteSeguro}
+        onClose={() => setDelSeguro(null)}
+        loading={deleting}
+      />
 
       <MantenimientoModal
         open={modalOpen}

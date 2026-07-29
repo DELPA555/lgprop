@@ -35,12 +35,20 @@ type Tipo =
   | 'pago_atrasado'
   | 'expensas_pendientes'
   | 'deposito_pendiente'
+  | 'seguro_por_vencer'
 
 interface NuevaNotif {
   tipo: Tipo
   contrato_id: string | null
   titulo: string
   mensaje: string
+  metadata?: Record<string, unknown>
+}
+
+// Clave de deduplicación: usa el contrato o, si no hay (ej. seguros), el id en metadata.
+function dedupeKey(n: { tipo: string; contrato_id: string | null; metadata?: Record<string, unknown> | null }): string {
+  const ref = n.contrato_id ?? (n.metadata?.seguro_id as string | undefined) ?? ''
+  return `${n.tipo}|${ref}`
 }
 
 async function enviarEmail(asunto: string, html: string): Promise<boolean> {
@@ -164,15 +172,36 @@ Deno.serve(async () => {
     }
   }
 
+  // 6) Seguros / ART por vencer (mismo criterio de días que contratos: dentro de 60)
+  {
+    const { data } = await supabase
+      .from('seguros_propiedad')
+      .select('id, tipo, aseguradora, fecha_vencimiento, propiedades(direccion)')
+      .gte('fecha_vencimiento', HOY)
+      .lte('fecha_vencimiento', enDias(60))
+    for (const s of data ?? []) {
+      const dir = (s as any).propiedades?.direccion ?? 'la propiedad'
+      const nombre = s.tipo === 'art' ? 'La ART' : s.tipo === 'seguro' ? 'El seguro' : 'La póliza'
+      const aseg = (s as any).aseguradora ? ` (${(s as any).aseguradora})` : ''
+      pendientes.push({
+        tipo: 'seguro_por_vencer',
+        contrato_id: null,
+        metadata: { seguro_id: s.id },
+        titulo: `Seguro por vencer — ${dir}`,
+        mensaje: `${nombre}${aseg} de ${dir} vence el ${s.fecha_vencimiento}. Gestioná la renovación antes de esa fecha.`
+      })
+    }
+  }
+
   // Dedup contra notificaciones recientes sin leer
   const { data: recientes } = await supabase
     .from('notificaciones')
-    .select('tipo, contrato_id')
+    .select('tipo, contrato_id, metadata')
     .eq('leida', false)
     .gte('created_at', enDias(-25))
-  const yaExiste = new Set((recientes ?? []).map((r) => `${r.tipo}|${r.contrato_id}`))
+  const yaExiste = new Set((recientes ?? []).map((r) => dedupeKey(r as any)))
 
-  const aInsertar = pendientes.filter((n) => !yaExiste.has(`${n.tipo}|${n.contrato_id}`))
+  const aInsertar = pendientes.filter((n) => !yaExiste.has(dedupeKey(n)))
 
   let creadas = 0
   if (aInsertar.length > 0) {
@@ -189,7 +218,8 @@ Deno.serve(async () => {
       actualizacion_monto: [],
       pago_atrasado: [],
       expensas_pendientes: [],
-      deposito_pendiente: []
+      deposito_pendiente: [],
+      seguro_por_vencer: []
     }
     for (const n of aInsertar) grupos[n.tipo].push(n)
 
@@ -198,7 +228,8 @@ Deno.serve(async () => {
       actualizacion_monto: 'Actualizaciones de alquiler pendientes',
       pago_atrasado: 'Pagos por registrar',
       expensas_pendientes: 'Expensas por conciliar',
-      deposito_pendiente: 'Depósitos por devolver'
+      deposito_pendiente: 'Depósitos por devolver',
+      seguro_por_vencer: 'Seguros / ART por vencer'
     }
 
     const secciones = (Object.keys(grupos) as Tipo[])

@@ -220,6 +220,19 @@ tipo de notificación `deposito_pendiente`).
   finalizado con depósito retenido. **Redeployar** la función tras esta migración:
   `supabase functions deploy enviar-avisos`.
 
+## Seguros / ART
+
+Migración: `supabase/migrations/0008_seguros.sql` (tabla `seguros_propiedad`:
+`propiedad_id`, `tipo` seguro/art/otro, `aseguradora`, `numero_poliza`,
+`fecha_vencimiento`; + tipo de notificación `seguro_por_vencer`).
+
+- En el **detalle de propiedad** (`/propiedades/:id`) hay una sección *Seguros / ART* para
+  cargar/editar seguros, con resaltado del vencimiento (amarillo si vence dentro de 60 días,
+  rojo si ya venció).
+- El motor **`enviar-avisos`** alerta por cada seguro que vence dentro de los próximos 60
+  días (mismo criterio que los contratos). Dedup por seguro vía `metadata.seguro_id`.
+  **Redeployar** tras la migración: `supabase functions deploy enviar-avisos`.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).

@@ -21,6 +21,7 @@ export type EstadoDeposito = 'retenido' | 'devuelto'
 export type EstadoPago = 'pagado' | 'pendiente' | 'atrasado'
 export type EstadoLiquidacion = 'pendiente' | 'enviada'
 export type EstadoMantenimiento = 'pendiente' | 'en_proceso' | 'resuelto'
+export type TipoSeguro = 'seguro' | 'art' | 'otro'
 export type RolUsuario = 'admin' | 'operador'
 export type TipoNotificacion =
   | 'vencimiento_contrato'
@@ -28,6 +29,7 @@ export type TipoNotificacion =
   | 'pago_atrasado'
   | 'expensas_pendientes'
   | 'deposito_pendiente'
+  | 'seguro_por_vencer'
 
 export type Dueno = {
   id: string
@@ -166,6 +168,17 @@ export type Mantenimiento = {
   created_at: string
 }
 
+export type SeguroPropiedad = {
+  id: string
+  propiedad_id: string
+  tipo: TipoSeguro
+  aseguradora: string | null
+  numero_poliza: string | null
+  fecha_vencimiento: string
+  notas: string | null
+  created_at: string
+}
+
 export type UsuarioEquipo = {
   id: string
   auth_user_id: string
@@ -212,6 +225,7 @@ export type Database = {
       contratos_generados: TableDef<ContratoGenerado>
       liquidaciones: TableDef<Liquidacion>
       mantenimiento: TableDef<Mantenimiento>
+      seguros_propiedad: TableDef<SeguroPropiedad>
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -224,6 +238,7 @@ export type Database = {
       estado_deposito: EstadoDeposito
       estado_liquidacion: EstadoLiquidacion
       estado_mantenimiento: EstadoMantenimiento
+      tipo_seguro: TipoSeguro
       rol_usuario: RolUsuario
       tipo_notificacion: TipoNotificacion
     }
