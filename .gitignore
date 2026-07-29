@@ -1,14 +1,26 @@
 node_modules/
+
+# Builds / salidas
 out/
 dist/
 dist-installer/
+release/
+
+# Logs
 *.log
+logs/
+npm-debug.log*
+
+# Archivos de sistema
 .DS_Store
+Thumbs.db
 
 # Variables de entorno (nunca commitear credenciales)
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
 
 # Supabase
 supabase/.temp/
