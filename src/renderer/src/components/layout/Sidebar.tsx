@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -28,6 +29,10 @@ const NAV = [
 export default function Sidebar(): JSX.Element {
   const { member, isAdmin, signOut } = useAuth()
   const nav = NAV.filter((n) => !n.adminOnly || isAdmin)
+  const [version, setVersion] = useState('')
+  useEffect(() => {
+    window.lgprop?.getVersion?.().then(setVersion).catch(() => {})
+  }, [])
   return (
     <aside className="w-56 shrink-0 h-full bg-[#0a0c11] border-r border-border flex flex-col">
       <div className="px-5 py-5 border-b border-border">
@@ -71,7 +76,9 @@ export default function Sidebar(): JSX.Element {
             </button>
           </div>
         )}
-        <div className="text-[10px] text-zinc-700 px-1">v0.1.0 · LG Prop</div>
+        <div className="text-[10px] text-zinc-700 px-1">
+          {version ? `v${version} · ` : ''}LG Prop
+        </div>
       </div>
     </aside>
   )
