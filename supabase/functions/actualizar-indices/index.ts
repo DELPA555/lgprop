@@ -17,14 +17,17 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// ⚠️ IMPORTANTE: verificá estos IDs de serie contra el catálogo antes de producción:
-//   https://apis.datos.gob.ar/series/api/search/?q=ICL
-// Cada índice se mapea a su serie oficial. Dejar '' desactiva ese índice.
+// IDs de serie verificados contra el catálogo datos.gob.ar (2026-07-29).
+// Dejar id '' desactiva ese índice → se carga a mano desde el módulo Índices.
+//   - IPC: nivel general nacional, número índice base dic-2016 (INDEC).
+//   - UVA: serie diaria (BCRA).
+//   - ICL: NO está publicado en datos.gob.ar → carga manual en la app.
+//   - Casa Propia: carga manual.
 const SERIES: Record<string, { id: string; fuente: string }> = {
-  ICL: { id: '152.1_ICL_0_M_18', fuente: 'BCRA' },
-  IPC: { id: '145.3_INGNACUAL_DICI_M_38', fuente: 'INDEC' },
-  UVA: { id: '160.1_INUVAABBA_0_D_28', fuente: 'BCRA' },
-  'Casa Propia': { id: '', fuente: 'BCRA' } // completar cuando se confirme la serie
+  ICL: { id: '', fuente: 'BCRA' }, // manual (no está en datos.gob.ar)
+  IPC: { id: '148.3_INIVELNAL_DICI_M_26', fuente: 'INDEC' }, // nivel general nacional (nº índice)
+  UVA: { id: '94.2_UVAD_D_0_0_10', fuente: 'BCRA' }, // UVA diario
+  'Casa Propia': { id: '', fuente: 'BCRA' } // manual
 }
 
 const SERIES_API = 'https://apis.datos.gob.ar/series/api/series'
