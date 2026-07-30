@@ -142,8 +142,8 @@ export default function Ajustes(): JSX.Element {
                   onClick={() => setDias(p)}
                   className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
                     dias === p
-                      ? 'bg-accent text-white border-accent'
-                      : 'border-border text-zinc-300 hover:text-white hover:bg-white/5'
+                      ? 'bg-accent text-[#04110f] font-medium border-accent'
+                      : 'border-border text-ink-2 hover:text-ink hover:bg-white/5'
                   }`}
                 >
                   {p} días

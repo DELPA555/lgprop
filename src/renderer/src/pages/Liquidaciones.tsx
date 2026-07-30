@@ -259,26 +259,20 @@ export default function Liquidaciones(): JSX.Element {
       {/* Resumen del mes */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
         <div className="card p-4">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider">Bruto cobrado</p>
-          <p className="text-2xl font-bold text-white mt-1 tabular-nums">
-            {formatARS(totales.bruto)}
-          </p>
+          <p className="text-xs text-ink-3 uppercase tracking-wider">Bruto cobrado</p>
+          <p className="num text-2xl font-bold text-ink mt-1">{formatARS(totales.bruto)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider">Comisión retenida</p>
-          <p className="text-2xl font-bold text-amber-400 mt-1 tabular-nums">
-            {formatARS(totales.comision)}
-          </p>
+          <p className="text-xs text-ink-3 uppercase tracking-wider">Comisión retenida</p>
+          <p className="num text-2xl font-bold text-warn mt-1">{formatARS(totales.comision)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider">Neto a transferir</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1 tabular-nums">
-            {formatARS(totales.neto)}
-          </p>
+          <p className="text-xs text-ink-3 uppercase tracking-wider">Neto a transferir</p>
+          <p className="num text-2xl font-bold text-ok mt-1">{formatARS(totales.neto)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider">Dueños</p>
-          <p className="text-2xl font-bold text-white mt-1 tabular-nums">{grupos.length}</p>
+          <p className="text-xs text-ink-3 uppercase tracking-wider">Dueños</p>
+          <p className="num text-2xl font-bold text-ink mt-1">{grupos.length}</p>
         </div>
       </div>
 
@@ -289,11 +283,11 @@ export default function Liquidaciones(): JSX.Element {
           onChange={(e) => setYm(e.target.value || currentYM())}
           className="input"
         />
-        <p className="text-xs text-zinc-500">
-          Se liquidan los pagos con estado <span className="text-emerald-400">cobrado</span> del
+        <p className="text-xs text-ink-3">
+          Se liquidan los pagos con estado <span className="text-ok">cobrado</span> del
           período.
           {hayUSD && (
-            <span className="text-zinc-600">
+            <span className="text-ink-3">
               {' '}
               Montos en pesos; los contratos en USD se convierten a la cotización del día de cada
               pago.
@@ -305,7 +299,7 @@ export default function Liquidaciones(): JSX.Element {
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs text-zinc-500 uppercase tracking-wider border-b border-border">
+            <tr className="text-left text-xs text-ink-3 uppercase tracking-wider border-b border-border">
               <th className="px-4 py-3 font-medium">Dueño</th>
               <th className="px-4 py-3 font-medium text-center">Propiedades</th>
               <th className="px-4 py-3 font-medium text-right">Bruto</th>
@@ -318,13 +312,13 @@ export default function Liquidaciones(): JSX.Element {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={7} className="px-4 py-10 text-center text-ink-3">
                   Cargando…
                 </td>
               </tr>
             ) : grupos.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={7} className="px-4 py-10 text-center text-ink-3">
                   No hay pagos cobrados en este período. Registrá pagos como “pagado” para
                   liquidar.
                 </td>
@@ -335,32 +329,28 @@ export default function Liquidaciones(): JSX.Element {
                 const enviada = liq?.estado === 'enviada'
                 return (
                   <tr key={g.duenoId ?? 'none'} className="border-b border-border/60 hover:bg-white/[0.02]">
-                    <td className="px-4 py-3 text-white font-medium">{g.duenoNombre}</td>
+                    <td className="px-4 py-3 text-ink font-medium">{g.duenoNombre}</td>
                     <td className="px-4 py-3 text-center">
-                      <span className="inline-flex items-center gap-1 text-zinc-300">
-                        <Building2 size={13} className="text-zinc-500" />
+                      <span className="inline-flex items-center gap-1 text-ink-2">
+                        <Building2 size={13} className="text-ink-3" />
                         {g.props.size}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-zinc-200 tabular-nums">
-                      {formatARS(g.bruto)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-amber-400 tabular-nums">
-                      {formatARS(g.comision)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-emerald-400 font-medium tabular-nums">
+                    <td className="px-4 py-3 text-right text-ink-2 num">{formatARS(g.bruto)}</td>
+                    <td className="px-4 py-3 text-right text-warn num">{formatARS(g.comision)}</td>
+                    <td className="px-4 py-3 text-right text-ok font-medium num">
                       {formatARS(g.neto)}
                     </td>
                     <td className="px-4 py-3">
                       {!liq ? (
-                        <span className="text-[11px] text-zinc-600">sin generar</span>
+                        <span className="text-[11px] text-ink-3">sin generar</span>
                       ) : (
                         <button
                           onClick={() => setEstado(liq, enviada ? 'pendiente' : 'enviada')}
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${
                             enviada
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              ? 'bg-ok/10 text-ok border-ok/25'
+                              : 'bg-warn/10 text-warn border-warn/25'
                           }`}
                           title="Cambiar estado"
                         >

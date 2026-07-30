@@ -100,9 +100,9 @@ const EMPTY: Form = {
 }
 
 const ESTADO_BADGE: Record<EstadoContrato, string> = {
-  activo: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  vencido: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  rescindido: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
+  activo: 'bg-ok/10 text-ok border-ok/25',
+  vencido: 'bg-warn/10 text-warn border-warn/25',
+  rescindido: 'bg-white/[0.03] text-ink-2 border-border'
 }
 
 export default function Contratos(): JSX.Element {

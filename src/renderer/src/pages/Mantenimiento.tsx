@@ -130,7 +130,9 @@ export default function Mantenimiento(): JSX.Element {
               key={f}
               onClick={() => setFiltro(f)}
               className={`px-3 py-1.5 rounded-md text-xs transition-colors ${
-                filtro === f ? 'bg-accent text-white' : 'text-zinc-400 hover:text-white'
+                filtro === f
+                  ? 'bg-accent text-[#04110f] font-medium'
+                  : 'text-ink-2 hover:text-ink'
               }`}
             >
               {f === 'todos'

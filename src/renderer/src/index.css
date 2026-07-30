@@ -14,10 +14,39 @@ body,
 
 body {
   margin: 0;
-  background: #0b0d12;
-  color: #e5e7eb;
-  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+  background: #0a0d12;
+  color: #e8ebf2;
+  font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Títulos con la face de display */
+h1,
+h2,
+h3 {
+  font-family: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Scrollbar sobria acorde a la paleta */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a3140 transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #2a3140;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #3a4354;
+  background-clip: content-box;
 }
 
 @layer components {
@@ -25,12 +54,46 @@ body {
     @apply bg-card border border-border rounded-xl;
   }
   .btn-primary {
-    @apply bg-accent hover:bg-accent-soft text-white font-medium rounded-lg px-4 py-2 transition-colors disabled:opacity-50;
+    @apply bg-accent hover:bg-accent-soft text-[#04110f] font-semibold rounded-lg px-4 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply border border-border text-ink-2 hover:text-ink hover:bg-white/[0.04] rounded-lg px-4 py-2 transition-colors disabled:opacity-50;
   }
   .input {
-    @apply bg-surface border border-border rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-accent-soft;
+    @apply bg-surface border border-border rounded-lg px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent/60 placeholder:text-ink-3;
   }
   .label {
-    @apply text-xs text-zinc-400 mb-1 block;
+    @apply text-xs text-ink-2 mb-1 block;
+  }
+
+  /* ── Números tabulares (KPIs, montos, columnas) ──────────────────── */
+  .num {
+    font-family: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  /* ── Chip de estado: base + variantes semánticas ─────────────────── */
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap border;
+  }
+  .chip::before {
+    content: '';
+    @apply inline-block w-1.5 h-1.5 rounded-full bg-current;
+  }
+  .chip-ok {
+    @apply text-ok border-ok/30 bg-ok/10;
+  }
+  .chip-warn {
+    @apply text-warn border-warn/30 bg-warn/10;
+  }
+  .chip-bad {
+    @apply text-bad border-bad/30 bg-bad/10;
+  }
+  .chip-info {
+    @apply text-info border-info/30 bg-info/10;
+  }
+  .chip-muted {
+    @apply text-ink-2 border-border bg-white/[0.03];
   }
 }

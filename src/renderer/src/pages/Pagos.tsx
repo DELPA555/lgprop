@@ -16,9 +16,9 @@ const currentYM = (): string => todayISO().slice(0, 7)
 const monthStart = (ym: string): string => `${ym}-01`
 
 const ESTADOS: { id: EstadoPago; label: string; cls: string }[] = [
-  { id: 'pendiente', label: 'Pendiente', cls: 'bg-zinc-500/15 text-zinc-300' },
-  { id: 'pagado', label: 'Pagado', cls: 'bg-emerald-500/15 text-emerald-400' },
-  { id: 'atrasado', label: 'Atrasado', cls: 'bg-red-500/15 text-red-400' }
+  { id: 'pendiente', label: 'Pendiente', cls: 'bg-warn/15 text-warn' },
+  { id: 'pagado', label: 'Pagado', cls: 'bg-ok/15 text-ok' },
+  { id: 'atrasado', label: 'Atrasado', cls: 'bg-bad/15 text-bad' }
 ]
 
 export default function Pagos(): JSX.Element {
@@ -219,27 +219,23 @@ export default function Pagos(): JSX.Element {
       {/* Resumen del mes */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
         <div className="card p-4">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider">Total del mes</p>
-          <p className="text-2xl font-bold text-white mt-1 tabular-nums">{formatARS(resumen.total)}</p>
+          <p className="text-xs text-ink-3 uppercase tracking-wider">Total del mes</p>
+          <p className="num text-2xl font-bold text-ink mt-1">{formatARS(resumen.total)}</p>
           {resumen.hayUSD && (
-            <p className="text-[10px] text-zinc-600 mt-0.5">en pesos · USD a cotización del día</p>
+            <p className="text-[10px] text-ink-3 mt-0.5">en pesos · USD a cotización del día</p>
           )}
         </div>
         <div className="card p-4">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider">Cobrado</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1 tabular-nums">
-            {formatARS(resumen.cobrado)}
-          </p>
+          <p className="text-xs text-ink-3 uppercase tracking-wider">Cobrado</p>
+          <p className="num text-2xl font-bold text-ok mt-1">{formatARS(resumen.cobrado)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider">Por cobrar</p>
-          <p className="text-2xl font-bold text-amber-400 mt-1 tabular-nums">
-            {formatARS(resumen.pendienteMonto)}
-          </p>
+          <p className="text-xs text-ink-3 uppercase tracking-wider">Por cobrar</p>
+          <p className="num text-2xl font-bold text-warn mt-1">{formatARS(resumen.pendienteMonto)}</p>
         </div>
         <div className="card p-4">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider">Atrasados</p>
-          <p className="text-2xl font-bold text-red-400 mt-1 tabular-nums">{resumen.atrasados}</p>
+          <p className="text-xs text-ink-3 uppercase tracking-wider">Atrasados</p>
+          <p className="num text-2xl font-bold text-bad mt-1">{resumen.atrasados}</p>
         </div>
       </div>
 
@@ -268,7 +264,9 @@ export default function Pagos(): JSX.Element {
               key={f}
               onClick={() => setFiltro(f)}
               className={`px-3 py-1.5 rounded-md text-xs capitalize transition-colors ${
-                filtro === f ? 'bg-accent text-white' : 'text-zinc-400 hover:text-white'
+                filtro === f
+                  ? 'bg-accent text-[#04110f] font-medium'
+                  : 'text-ink-2 hover:text-ink'
               }`}
             >
               {f}
@@ -280,7 +278,7 @@ export default function Pagos(): JSX.Element {
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs text-zinc-500 uppercase tracking-wider border-b border-border">
+            <tr className="text-left text-xs text-ink-3 uppercase tracking-wider border-b border-border">
               <th className="px-4 py-3 font-medium">Contrato</th>
               <th className="px-4 py-3 font-medium text-right">Monto</th>
               <th className="px-4 py-3 font-medium text-right">Comisión</th>
@@ -309,24 +307,22 @@ export default function Pagos(): JSX.Element {
             ) : (
               filtered.map((p) => (
                 <tr key={p.id} className="border-b border-border/60 hover:bg-white/[0.02]">
-                  <td className="px-4 py-2.5 text-white">{contratoLabel(p.contrato_id)}</td>
-                  <td className="px-4 py-2.5 text-right text-zinc-200 tabular-nums">
+                  <td className="px-4 py-2.5 text-ink">{contratoLabel(p.contrato_id)}</td>
+                  <td className="px-4 py-2.5 text-right text-ink-2 num">
                     {formatMoneda(p.monto, monedaDe(p.contrato_id))}
                     {monedaDe(p.contrato_id) === 'USD' && (
-                      <div className="text-[10px] text-zinc-600">≈ {formatARS(p.monto_ars)}</div>
+                      <div className="text-[10px] text-ink-3">≈ {formatARS(p.monto_ars)}</div>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-right text-amber-400/80 tabular-nums text-xs">
+                  <td className="px-4 py-2.5 text-right text-warn/90 num text-xs">
                     {p.monto_comision > 0
                       ? formatMoneda(p.monto_comision, monedaDe(p.contrato_id))
                       : '—'}
                     {p.porcentaje_comision_aplicado > 0 && (
-                      <div className="text-[10px] text-zinc-600">
-                        {p.porcentaje_comision_aplicado}%
-                      </div>
+                      <div className="text-[10px] text-ink-3">{p.porcentaje_comision_aplicado}%</div>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-right text-emerald-400 tabular-nums">
+                  <td className="px-4 py-2.5 text-right text-ok num">
                     {formatMoneda(p.monto_neto, monedaDe(p.contrato_id))}
                   </td>
                   <td className="px-4 py-2.5">
@@ -336,7 +332,7 @@ export default function Pagos(): JSX.Element {
                           key={e.id}
                           onClick={() => setEstado(p, e.id)}
                           className={`px-2 py-0.5 rounded-md text-[11px] transition-colors ${
-                            p.estado === e.id ? e.cls : 'text-zinc-600 hover:text-zinc-300'
+                            p.estado === e.id ? e.cls : 'text-ink-3 hover:text-ink-2'
                           }`}
                         >
                           {e.label}
@@ -347,19 +343,19 @@ export default function Pagos(): JSX.Element {
                   <td className="px-4 py-2.5 text-center">
                     <input
                       type="checkbox"
-                      className="w-4 h-4 accent-blue-500"
+                      className="w-4 h-4 accent-accent"
                       checked={p.expensas_pagadas}
                       onChange={() => toggleExpensas(p)}
                     />
                   </td>
-                  <td className="px-4 py-2.5 text-zinc-500 text-xs">
+                  <td className="px-4 py-2.5 text-ink-3 text-xs">
                     {p.fecha_pago ? formatDate(p.fecha_pago) : '—'}
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex justify-end">
                       <button
                         onClick={() => openEdit(p)}
-                        className="p-1.5 rounded-md text-zinc-400 hover:text-white hover:bg-white/5"
+                        className="p-1.5 rounded-md text-ink-2 hover:text-ink hover:bg-white/5"
                         title="Editar"
                       >
                         <Pencil size={15} />
@@ -425,10 +421,10 @@ export default function Pagos(): JSX.Element {
                   onChange={(e) => setForm((f) => ({ ...f, fecha_pago: e.target.value || null }))}
                 />
               </Field>
-              <label className="flex items-center gap-2 text-sm text-zinc-300 pb-2">
+              <label className="flex items-center gap-2 text-sm text-ink-2 pb-2">
                 <input
                   type="checkbox"
-                  className="w-4 h-4 accent-blue-500"
+                  className="w-4 h-4 accent-accent"
                   checked={!!form.expensas_pagadas}
                   onChange={(e) => setForm((f) => ({ ...f, expensas_pagadas: e.target.checked }))}
                 />

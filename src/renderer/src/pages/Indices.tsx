@@ -193,7 +193,9 @@ export default function Indices(): JSX.Element {
                 key={idx}
                 onClick={() => setSelected(idx)}
                 className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
-                  selected === idx ? 'bg-accent text-white' : 'text-zinc-400 hover:text-white'
+                  selected === idx
+                    ? 'bg-accent text-[#04110f] font-medium'
+                    : 'text-ink-2 hover:text-ink'
                 }`}
               >
                 {idx}
