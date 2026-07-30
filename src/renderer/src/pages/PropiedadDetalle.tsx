@@ -9,7 +9,9 @@ import {
   Loader2,
   ShieldCheck,
   Users,
-  FileText
+  FileText,
+  Landmark,
+  UserCheck
 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type {
@@ -29,6 +31,7 @@ import ConfigNotice from '@/components/ConfigNotice'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import EstadoChip from '@/components/ui/EstadoChip'
 import ContratoMontos from '@/components/ui/ContratoMontos'
+import TelefonoWhatsApp from '@/components/ui/TelefonoWhatsApp'
 import { useToast } from '@/components/ui/Toast'
 import { formatARS, formatDate } from '@/lib/format'
 import { daysUntil } from '@/lib/dates'
@@ -52,6 +55,8 @@ export default function PropiedadDetalle(): JSX.Element {
   const [contratos, setContratos] = useState<Contrato[]>([])
   const [pendientesSet, setPendientesSet] = useState<Set<string>>(new Set())
   const [inqMap, setInqMap] = useState<Record<string, string>>({})
+  // Datos completos del inquilino (para el garante del contrato activo)
+  const [inqDatos, setInqDatos] = useState<Record<string, Inquilino>>({})
   const [archivosPorContrato, setArchivosPorContrato] = useState<
     Record<string, ContratoArchivo[]>
   >({})
@@ -71,6 +76,11 @@ export default function PropiedadDetalle(): JSX.Element {
     () => contratos.filter((c) => c.estado === 'activo').length,
     [contratos]
   )
+  const contratoActivo = useMemo(
+    () => contratos.find((c) => c.estado === 'activo') ?? null,
+    [contratos]
+  )
+  const garante = contratoActivo ? inqDatos[contratoActivo.inquilino_id] : null
 
   const aplicarAdministrada = async (next: boolean): Promise<void> => {
     if (!prop) return
@@ -141,15 +151,18 @@ export default function PropiedadDetalle(): JSX.Element {
     }
     const inqIds = [...new Set((ctr ?? []).map((c) => c.inquilino_id))]
     if (inqIds.length > 0) {
-      const { data: inqs } = await supabase
-        .from('inquilinos')
-        .select('id, nombre')
-        .in('id', inqIds)
+      const { data: inqs } = await supabase.from('inquilinos').select('*').in('id', inqIds)
       const m: Record<string, string> = {}
-      for (const i of inqs ?? []) m[i.id] = i.nombre
+      const full: Record<string, Inquilino> = {}
+      for (const i of inqs ?? []) {
+        m[i.id] = i.nombre
+        full[i.id] = i
+      }
       setInqMap(m)
+      setInqDatos(full)
     } else {
       setInqMap({})
+      setInqDatos({})
     }
     setArchivosPorContrato(
       await listarArchivosPorContratos((ctr ?? []).map((c) => c.id))
@@ -288,6 +301,81 @@ export default function PropiedadDetalle(): JSX.Element {
                     : '—'}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Dueño (transferencias) + Garante del contrato activo */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Landmark size={15} className="text-zinc-400" /> Dueño · datos para transferir
+              </h2>
+              {dueno ? (
+                <div className="mt-3 space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-zinc-500 text-xs uppercase tracking-wider">Nombre</span>
+                    <span className="text-zinc-200">{dueno.nombre}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-zinc-500 text-xs uppercase tracking-wider">Teléfono</span>
+                    <span className="text-zinc-200">
+                      <TelefonoWhatsApp numero={dueno.telefono} size={14} />
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-zinc-500 text-xs uppercase tracking-wider">CBU</span>
+                    <span className="text-zinc-200 num tabular-nums break-all text-right">
+                      {dueno.cbu || <span className="text-zinc-600">—</span>}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-zinc-500 text-xs uppercase tracking-wider">Alias</span>
+                    <span className="text-zinc-200 break-all text-right">
+                      {dueno.alias_cbu || <span className="text-zinc-600">—</span>}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-600 mt-3">Esta propiedad no tiene dueño asignado.</p>
+              )}
+            </div>
+
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <UserCheck size={15} className="text-zinc-400" /> Garante del contrato activo
+              </h2>
+              {!contratoActivo ? (
+                <p className="text-xs text-zinc-600 mt-3">No hay un contrato activo en esta propiedad.</p>
+              ) : garante?.garante_nombre || garante?.garante_telefono || garante?.garante_dni ? (
+                <div className="mt-3 space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-zinc-500 text-xs uppercase tracking-wider">Nombre</span>
+                    <span className="text-zinc-200">
+                      {garante?.garante_nombre || <span className="text-zinc-600">—</span>}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-zinc-500 text-xs uppercase tracking-wider">Teléfono</span>
+                    <span className="text-zinc-200">
+                      <TelefonoWhatsApp numero={garante?.garante_telefono} size={14} />
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-zinc-500 text-xs uppercase tracking-wider">DNI</span>
+                    <span className="text-zinc-200">
+                      {garante?.garante_dni || <span className="text-zinc-600">—</span>}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-600 pt-1">
+                    Inquilino: {inqMap[contratoActivo.inquilino_id] ?? '—'}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-600 mt-3">
+                  El contrato activo ({inqMap[contratoActivo.inquilino_id] ?? '—'}) no tiene garante
+                  cargado.
+                </p>
+              )}
             </div>
           </div>
 

@@ -49,22 +49,47 @@ El JSON debe tener EXACTAMENTE estas claves (usá null cuando el dato no figure 
   "nombre_dueno": string|null,
   "email_dueno": string|null,
   "telefono_dueno": string|null,
+  "dueno_confianza": "alta"|"baja"|null,
   "direccion_propiedad": string|null,
   "monto_inicial": number|null,
   "fecha_inicio": string|null,        // formato YYYY-MM-DD
   "fecha_fin": string|null,           // formato YYYY-MM-DD
+  "duracion_meses": number|null,      // PLAZO TOTAL del contrato en meses
   "indice_actualizacion": string|null,// uno de: ${INDICES.join(', ')}
   "frecuencia_actualizacion_meses": number|null,
   "monto_expensas": number|null
 }
 
-Reglas:
+IDENTIFICACIÓN DE LAS PARTES (importante — los contratos usan etiquetas muy variadas):
+- El DUEÑO/propietario puede aparecer como: "LOCADOR", "LOCADORA", "LA LOCADORA",
+  "EL LOCADOR", "PROPIETARIO", "PROPIETARIA", "parte locadora", "el/la titular",
+  "cedente", o simplemente nombrado en el encabezado antes de "por una parte". Su nombre
+  también puede estar en la cláusula de domicilios constituidos. Tomá a esa persona como
+  "nombre_dueno" (si es una inmobiliaria/administradora actuando por el propietario, usá el
+  nombre del propietario real si figura; si no, el de quien firma como locador).
+- El INQUILINO puede aparecer como: "LOCATARIO", "LOCATARIA", "INQUILINO", "parte locataria",
+  "el/la tomador/a".
+- "dueno_confianza": "alta" si identificaste al locador/propietario con claridad; "baja" si
+  tuviste que inferirlo o hay ambigüedad; null si NO lograste identificarlo. Preferí "baja" o
+  null antes que arriesgar un nombre incorrecto.
+
+PLAZO Y ACTUALIZACIÓN (no los confundas):
+- "duracion_meses" es el PLAZO TOTAL de la locación (típico: 12, 24 o 36 meses), lo que suele
+  decirse como "el plazo de la locación es de X meses" o surge de la diferencia entre
+  fecha_inicio y fecha_fin.
+- "frecuencia_actualizacion_meses" es CADA CUÁNTOS meses se ajusta el monto (ej: "actualización
+  trimestral" = 3; "cuatrimestral" = 4; "semestral" = 6; "anual" = 12).
+- NO uses el número de la frecuencia como duración ni viceversa. Ejemplo de trampa: "ajuste
+  trimestral durante 24 meses" → duracion_meses = 24, frecuencia = 3.
+- Si tenés fecha_inicio y fecha_fin, "duracion_meses" DEBE coincidir con la cantidad de meses
+  entre ambas. Si no coincide o dudás, priorizá las fechas y dejá "duracion_meses" en null.
+
+Otras reglas:
 - "monto_inicial" y "monto_expensas" son números sin símbolos ni separadores de miles (ej: 250000.5).
 - El email y el teléfono de cada parte suelen estar en el encabezado, en los domicilios
   constituidos, o en la cláusula de notificaciones/domicilios. Buscalos ahí. Si el contrato
   no los menciona (pasa seguido, sobre todo el email), dejá esa clave en null: NO inventes
-  ni asumas datos de contacto. Asociá cada email/teléfono a la parte correcta (inquilino/locatario
-  vs dueño/locador) según a quién corresponda el domicilio o la mención.
+  ni asumas datos de contacto. Asociá cada email/teléfono a la parte correcta.
 - Mapeá el índice de actualización a la opción más parecida de la lista. Si el contrato usa
   un porcentaje fijo por período, poné "Porcentaje fijo". Si dice que el ajuste es manual o a
   convenir, poné "Manual". Si no se menciona ningún ajuste, poné null.

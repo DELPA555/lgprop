@@ -35,7 +35,13 @@ import { useToast } from '@/components/ui/Toast'
 import TelefonoWhatsApp from '@/components/ui/TelefonoWhatsApp'
 import ContratoMontos from '@/components/ui/ContratoMontos'
 import { formatARS, formatDate, formatMoneda } from '@/lib/format'
-import { computeFechaFin, computeProximaActualizacion, daysUntil, todayISO } from '@/lib/dates'
+import {
+  computeFechaFin,
+  computeProximaActualizacion,
+  daysUntil,
+  monthsBetween,
+  todayISO
+} from '@/lib/dates'
 import GenerarContratoModal from '@/components/ai/GenerarContratoModal'
 import ArchivoPreviewModal from '@/components/ArchivoPreviewModal'
 import { edgeErrorMessage } from '@/lib/edgeError'
@@ -57,10 +63,12 @@ type Extraido = {
   nombre_dueno?: string | null
   email_dueno?: string | null
   telefono_dueno?: string | null
+  dueno_confianza?: 'alta' | 'baja' | null
   direccion_propiedad?: string | null
   monto_inicial?: number | null
   fecha_inicio?: string | null
   fecha_fin?: string | null
+  duracion_meses?: number | null
   indice_actualizacion?: string | null
   frecuencia_actualizacion_meses?: number | null
   monto_expensas?: number | null
@@ -127,6 +135,8 @@ export default function Contratos(): JSX.Element {
   const fileRef = useRef<HTMLInputElement>(null)
   const [extracting, setExtracting] = useState(false)
   const [extraido, setExtraido] = useState<Extraido | null>(null)
+  // Avisos de revisión manual sobre lo que extrajo la IA (dueño dudoso, plazo incierto…)
+  const [extraccionAvisos, setExtraccionAvisos] = useState<string[]>([])
   const [generarOpen, setGenerarOpen] = useState(false)
   // Archivos del contrato
   const archivoInputRef = useRef<HTMLInputElement>(null)
@@ -287,8 +297,56 @@ export default function Contratos(): JSX.Element {
     )
     const monto = num(d.monto_inicial) ?? 0
     const fi = d.fecha_inicio || todayISO()
-    const ff = d.fecha_fin || ''
     const freq = num(d.frecuencia_actualizacion_meses) ?? 3
+    const avisos: string[] = []
+
+    // ── Dueño: avisar si la IA no lo identificó o lo hizo con baja confianza ──
+    if (!d.nombre_dueno || d.dueno_confianza === 'baja') {
+      avisos.push(
+        d.nombre_dueno
+          ? `El dueño («${d.nombre_dueno}») se identificó con baja confianza. Verificá que sea el locador/propietario correcto.`
+          : 'No se pudo identificar al dueño/locador en el contrato. Cargalo a mano y revisá el documento.'
+      )
+    } else if (d.nombre_dueno && !due) {
+      // Se extrajo un nombre pero no coincide con ningún dueño existente → habrá que crearlo.
+      avisos.push(
+        `El dueño «${d.nombre_dueno}» no está en el sistema todavía. Crealo con el botón de abajo o asignalo a mano.`
+      )
+    }
+
+    // ── Plazo / fechas: derivar la duración de las fechas y validar coherencia ──
+    // Preferimos SIEMPRE la duración que surge de fecha_inicio/fecha_fin (más confiable
+    // que un número suelto que la IA pueda confundir con la frecuencia).
+    const durAI = num(d.duracion_meses)
+    const durFechas = d.fecha_inicio && d.fecha_fin ? monthsBetween(d.fecha_inicio, d.fecha_fin) : null
+    let duracion: number
+    let ff: string
+    if (durFechas && durFechas > 0) {
+      duracion = durFechas
+      ff = d.fecha_fin!
+      // Si la IA reportó una duración muy distinta a la de las fechas → probable confusión
+      // con la frecuencia; avisamos aunque usemos la de las fechas.
+      if (durAI != null && Math.abs(durAI - durFechas) > 1) {
+        avisos.push(
+          `El plazo declarado por la IA (${durAI} meses) no coincide con las fechas (${durFechas} meses). Usé el de las fechas; verificá cuál es el correcto.`
+        )
+      }
+    } else if (durAI != null && durAI > 0) {
+      // Sólo tenemos duración (falta alguna fecha): la usamos pero marcamos para revisar.
+      duracion = durAI
+      ff = d.fecha_fin || computeFechaFin(fi, durAI)
+      avisos.push(
+        'No se pudieron leer ambas fechas del contrato para validar el plazo. Revisá la duración y las fechas antes de guardar.'
+      )
+    } else {
+      // Sin datos confiables de plazo: no inventamos 36. Dejamos para revisión manual.
+      duracion = 0
+      ff = d.fecha_fin || ''
+      avisos.push(
+        'No se pudo determinar el plazo del contrato. Cargá la duración (meses) y la fecha de fin a mano.'
+      )
+    }
+
     setEditing(null)
     setForm({
       ...EMPTY,
@@ -299,12 +357,17 @@ export default function Contratos(): JSX.Element {
       monto_actual: monto,
       fecha_inicio: fi,
       fecha_fin: ff,
+      duracion_meses: duracion,
       indice_actualizacion: asIndice(d.indice_actualizacion) ?? 'ICL',
       frecuencia_actualizacion_meses: freq,
-      proxima_actualizacion: computeProximaActualizacion(fi, freq, ff || computeFechaFin(fi, 36)),
+      proxima_actualizacion: ff ? computeProximaActualizacion(fi, freq, ff) : null,
       estado: 'activo'
     })
     setExtraido(d)
+    setExtraccionAvisos(avisos)
+    if (avisos.length > 0) {
+      toast.info(`Revisá ${avisos.length} dato(s): el sistema no está seguro de algunos campos.`)
+    }
     // Reutilizar el mismo archivo que subió para la IA (no pedirlo dos veces)
     setArchivosNuevos(file ? [file] : [])
     setArchivosExistentes([])
@@ -388,11 +451,13 @@ export default function Contratos(): JSX.Element {
   const closeModal = (): void => {
     setModalOpen(false)
     setExtraido(null)
+    setExtraccionAvisos([])
   }
 
   const openCreate = (): void => {
     setEditing(null)
     setExtraido(null)
+    setExtraccionAvisos([])
     setArchivosNuevos([])
     setArchivosExistentes([])
     setForm({ ...EMPTY, fecha_inicio: todayISO() })
@@ -415,6 +480,7 @@ export default function Contratos(): JSX.Element {
   const openEdit = (c: Contrato): void => {
     setEditing(c)
     setExtraido(null)
+    setExtraccionAvisos([])
     setArchivosNuevos([])
     setArchivosExistentes([])
     setForm({ ...c })
@@ -719,6 +785,18 @@ export default function Contratos(): JSX.Element {
         }
       >
         <div className="space-y-3">
+          {extraccionAvisos.length > 0 && (
+            <div className="rounded-lg border border-warn/30 bg-warn/10 p-3 text-xs space-y-1.5">
+              <p className="text-warn font-semibold flex items-center gap-1.5">
+                <AlertTriangle size={14} /> Revisar manualmente ({extraccionAvisos.length})
+              </p>
+              <ul className="list-disc pl-5 text-ink-2 space-y-1">
+                {extraccionAvisos.map((a, i) => (
+                  <li key={i}>{a}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {extraido && (
             <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-3 text-xs space-y-2">
               <p className="text-sky-300 font-medium flex items-center gap-1.5">
