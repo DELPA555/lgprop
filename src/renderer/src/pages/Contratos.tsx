@@ -24,8 +24,10 @@ import type {
   EstadoContrato,
   EstadoDeposito,
   TipoIndice,
-  Moneda
+  Moneda,
+  UsuarioEquipo
 } from '@/types/database'
+import { useAuth } from '@/context/AuthContext'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
 import Modal from '@/components/ui/Modal'
@@ -106,6 +108,7 @@ const EMPTY: Form = {
   estado_deposito: 'retenido',
   fecha_devolucion_deposito: null,
   motivo_finalizacion: null,
+  confeccionado_por: null,
   notas: ''
 }
 
@@ -117,10 +120,13 @@ const ESTADO_BADGE: Record<EstadoContrato, string> = {
 
 export default function Contratos(): JSX.Element {
   const toast = useToast()
+  const { member } = useAuth()
   const [rows, setRows] = useState<Contrato[]>([])
   const [propiedades, setPropiedades] = useState<Propiedad[]>([])
   const [inquilinos, setInquilinos] = useState<Inquilino[]>([])
   const [duenos, setDuenos] = useState<Dueno[]>([])
+  const [equipo, setEquipo] = useState<UsuarioEquipo[]>([])
+  const [filtroConf, setFiltroConf] = useState<string>('todos')
   // Contratos con actualización calculada pero sin confirmar
   const [pendientesSet, setPendientesSet] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -159,6 +165,11 @@ export default function Contratos(): JSX.Element {
     for (const d of duenos) m[d.id] = d.nombre
     return m
   }, [duenos])
+  const equipoMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const e of equipo) m[e.id] = e.nombre
+    return m
+  }, [equipo])
 
   const load = async (): Promise<void> => {
     if (!isSupabaseConfigured) {
@@ -166,7 +177,7 @@ export default function Contratos(): JSX.Element {
       return
     }
     setLoading(true)
-    const [ctr, prop, inq, dus, act] = await Promise.all([
+    const [ctr, prop, inq, dus, act, eq] = await Promise.all([
       supabase.from('contratos').select('*').order('fecha_fin'),
       supabase.from('propiedades').select('*').order('direccion'),
       supabase.from('inquilinos').select('*').order('nombre'),
@@ -174,13 +185,15 @@ export default function Contratos(): JSX.Element {
       supabase
         .from('actualizaciones_contrato')
         .select('contrato_id')
-        .eq('confirmado_por_usuario', false)
+        .eq('confirmado_por_usuario', false),
+      supabase.from('usuarios_equipo').select('*').order('nombre')
     ])
     if (ctr.error) toast.error(ctr.error.message)
     setRows(ctr.data ?? [])
     setPropiedades(prop.data ?? [])
     setInquilinos(inq.data ?? [])
     setDuenos(dus.data ?? [])
+    setEquipo(eq.data ?? [])
     setPendientesSet(new Set((act.data ?? []).map((a) => a.contrato_id)))
     setLoading(false)
   }
@@ -191,13 +204,22 @@ export default function Contratos(): JSX.Element {
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
-    if (!s) return rows
-    return rows.filter((r) =>
-      [propMap[r.propiedad_id]?.direccion, inqMap[r.inquilino_id], r.indice_actualizacion]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(s))
-    )
-  }, [rows, q, propMap, inqMap])
+    return rows
+      .filter((r) =>
+        filtroConf === 'todos'
+          ? true
+          : filtroConf === 'sin'
+            ? !r.confeccionado_por
+            : r.confeccionado_por === filtroConf
+      )
+      .filter((r) =>
+        !s
+          ? true
+          : [propMap[r.propiedad_id]?.direccion, inqMap[r.inquilino_id], r.indice_actualizacion]
+              .filter(Boolean)
+              .some((v) => String(v).toLowerCase().includes(s))
+      )
+  }, [rows, q, propMap, inqMap, filtroConf])
 
   // Patch con recálculo de campos derivados (fecha_fin y próxima actualización)
   const patch = (next: Partial<Form>): void => {
@@ -361,7 +383,8 @@ export default function Contratos(): JSX.Element {
       indice_actualizacion: asIndice(d.indice_actualizacion) ?? 'ICL',
       frecuencia_actualizacion_meses: freq,
       proxima_actualizacion: ff ? computeProximaActualizacion(fi, freq, ff) : null,
-      estado: 'activo'
+      estado: 'activo',
+      confeccionado_por: member?.id ?? null
     })
     setExtraido(d)
     setExtraccionAvisos(avisos)
@@ -460,7 +483,7 @@ export default function Contratos(): JSX.Element {
     setExtraccionAvisos([])
     setArchivosNuevos([])
     setArchivosExistentes([])
-    setForm({ ...EMPTY, fecha_inicio: todayISO() })
+    setForm({ ...EMPTY, fecha_inicio: todayISO(), confeccionado_por: member?.id ?? null })
     // pre-cálculo de derivados
     setTimeout(
       () =>
@@ -545,6 +568,7 @@ export default function Contratos(): JSX.Element {
           ? form.fecha_devolucion_deposito || todayISO()
           : null,
       motivo_finalizacion: form.estado !== 'activo' ? form.motivo_finalizacion || null : null,
+      confeccionado_por: form.confeccionado_por || null,
       notas: form.notas || null
     }
     let contratoId = editing?.id
@@ -633,14 +657,33 @@ export default function Contratos(): JSX.Element {
 
       {!isSupabaseConfigured && <ConfigNotice />}
 
-      <div className="relative mb-4 max-w-sm">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-        <input
-          className="input w-full pl-9"
-          placeholder="Buscar por propiedad, inquilino o índice…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="relative flex-1 max-w-sm">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <input
+            className="input w-full pl-9"
+            placeholder="Buscar por propiedad, inquilino o índice…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <select
+          className="input"
+          value={filtroConf}
+          onChange={(e) => setFiltroConf(e.target.value)}
+          title="Filtrar por quién lo confeccionó"
+        >
+          <option value="todos">Confeccionado por: todos</option>
+          {equipo.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.nombre}
+              {rows.filter((r) => r.confeccionado_por === e.id).length > 0
+                ? ` (${rows.filter((r) => r.confeccionado_por === e.id).length})`
+                : ''}
+            </option>
+          ))}
+          <option value="sin">— Sin asignar —</option>
+        </select>
       </div>
 
       <div className="card overflow-hidden">
@@ -678,6 +721,11 @@ export default function Contratos(): JSX.Element {
                   <tr key={c.id} className="border-b border-border/60 hover:bg-white/[0.02]">
                     <td className="px-4 py-3 text-white font-medium">
                       {propMap[c.propiedad_id]?.direccion ?? '—'}
+                      {c.confeccionado_por && equipoMap[c.confeccionado_por] && (
+                        <div className="text-[10px] text-ink-3 font-normal">
+                          Confeccionó: {equipoMap[c.confeccionado_por]}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-zinc-400">
                       <span className="inline-flex items-center gap-1.5">
@@ -1197,6 +1245,21 @@ export default function Contratos(): JSX.Element {
                 </div>
               )}
           </div>
+
+          <Field label="Confeccionado por">
+            <Select
+              value={form.confeccionado_por ?? ''}
+              onChange={(e) => patch({ confeccionado_por: e.target.value || null })}
+            >
+              <option value="">— Sin asignar —</option>
+              {equipo.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nombre}
+                  {member?.id === e.id ? ' (vos)' : ''}
+                </option>
+              ))}
+            </Select>
+          </Field>
 
           <Field label="Notas">
             <TextArea

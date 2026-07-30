@@ -94,6 +94,7 @@ export type Contrato = {
   estado_deposito: EstadoDeposito
   fecha_devolucion_deposito: string | null
   motivo_finalizacion: string | null
+  confeccionado_por: string | null // usuarios_equipo.id
   notas: string | null
   created_at: string
 }
