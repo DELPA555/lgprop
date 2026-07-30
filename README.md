@@ -295,6 +295,24 @@ Migración: `supabase/migrations/0011_contratos_archivos.sql` (bucket **privado*
 - El bucket es **privado**: los archivos se acceden con **URLs firmadas** temporales; sin
   autenticación no se pueden ver ni descargar (`lib/contratoArchivos.ts`).
 
+## Moneda: contratos en dólares o mixtos
+
+Migraciones: `0012_moneda.sql` + `0013_cron_cotizaciones.sql`.
+
+- Los contratos tienen **`moneda` (ARS/USD)** y, para mixtos, `indice_sobre` (sobre qué
+  moneda se aplica el índice).
+- **Cotización automática**: la Edge Function `actualizar-cotizaciones` trae oficial, blue y
+  MEP desde **dolarapi.com** (⚠️ dominio pelado, sin `api.`) con respaldo en bluelytics, y
+  las guarda en `cotizaciones_dolar`. Cron diario (`0013`). Deploy:
+  `supabase functions deploy actualizar-cotizaciones`.
+- **Pagos en USD**: un trigger guarda el equivalente en pesos (`monto_ars`) según la
+  cotización **blue** (configurable en *Ajustes*) del día del pago. En la tabla de Pagos se
+  ve el monto en USD y su ≈ pesos.
+- **Dashboard**: las comisiones cobradas se muestran separadas ARS + USD.
+- **Liquidaciones**: los montos se consolidan en pesos (los USD se convierten con la
+  cotización guardada de cada pago; no se mezclan monedas al sumar).
+- **Ajustes**: selector de qué cotización usar (blue/MEP/oficial) + últimas cotizaciones.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).

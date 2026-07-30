@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import PageHeader from '@/components/PageHeader'
-import { formatARS } from '@/lib/format'
+import { formatARS, formatUSD } from '@/lib/format'
 
 interface Metrics {
   vencimientos: number
@@ -18,6 +18,8 @@ interface Metrics {
   expensasPendientes: number
   comisionMes: number
   comisionAnio: number
+  comisionMesUSD: number
+  comisionAnioUSD: number
 }
 
 function addDaysISO(days: number): string {
@@ -114,15 +116,29 @@ export default function Dashboard(): JSX.Element {
       const monthStartISO = `${todayISO().slice(0, 7)}-01`
       let comisionMes = 0
       let comisionAnio = 0
+      let comisionMesUSD = 0
+      let comisionAnioUSD = 0
       try {
+        // Moneda por contrato para separar comisiones ARS / USD
+        const { data: ctrs } = await supabase.from('contratos').select('id, moneda')
+        const monedaMap: Record<string, string> = {}
+        for (const c of ctrs ?? []) monedaMap[c.id] = c.moneda
         const { data: comPagos } = await supabase
           .from('pagos')
-          .select('monto_comision, mes_correspondiente')
+          .select('monto_comision, mes_correspondiente, contrato_id')
           .eq('estado', 'pagado')
           .gte('mes_correspondiente', yearStart)
         for (const p of comPagos ?? []) {
-          comisionAnio += p.monto_comision ?? 0
-          if (p.mes_correspondiente === monthStartISO) comisionMes += p.monto_comision ?? 0
+          const esUSD = monedaMap[p.contrato_id] === 'USD'
+          const v = p.monto_comision ?? 0
+          const delMes = p.mes_correspondiente === monthStartISO
+          if (esUSD) {
+            comisionAnioUSD += v
+            if (delMes) comisionMesUSD += v
+          } else {
+            comisionAnio += v
+            if (delMes) comisionMes += v
+          }
         }
       } catch {
         // sin datos
@@ -135,7 +151,9 @@ export default function Dashboard(): JSX.Element {
         pagosAtrasados,
         expensasPendientes,
         comisionMes,
-        comisionAnio
+        comisionAnio,
+        comisionMesUSD,
+        comisionAnioUSD
       })
       setLoading(false)
     })()
@@ -194,6 +212,11 @@ export default function Dashboard(): JSX.Element {
           <div className="text-3xl font-bold text-white mt-3 tabular-nums">
             {loading ? '—' : formatARS(metrics?.comisionMes ?? 0)}
           </div>
+          {(metrics?.comisionMesUSD ?? 0) > 0 && (
+            <div className="text-sm font-semibold text-sky-400 tabular-nums">
+              + {formatUSD(metrics?.comisionMesUSD ?? 0)}
+            </div>
+          )}
           <div className="text-[11px] text-zinc-600 mt-1">Comisión retenida de pagos cobrados</div>
         </div>
         <div className="card p-5">
@@ -206,6 +229,11 @@ export default function Dashboard(): JSX.Element {
           <div className="text-3xl font-bold text-white mt-3 tabular-nums">
             {loading ? '—' : formatARS(metrics?.comisionAnio ?? 0)}
           </div>
+          {(metrics?.comisionAnioUSD ?? 0) > 0 && (
+            <div className="text-sm font-semibold text-sky-400 tabular-nums">
+              + {formatUSD(metrics?.comisionAnioUSD ?? 0)}
+            </div>
+          )}
           <div className="text-[11px] text-zinc-600 mt-1">Acumulado del año en curso</div>
         </div>
       </div>

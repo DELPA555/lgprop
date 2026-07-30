@@ -23,7 +23,8 @@ import type {
   Dueno,
   EstadoContrato,
   EstadoDeposito,
-  TipoIndice
+  TipoIndice,
+  Moneda
 } from '@/types/database'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
@@ -31,7 +32,7 @@ import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { Field, TextInput, TextArea, Select } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
-import { formatARS, formatDate } from '@/lib/format'
+import { formatARS, formatDate, formatMoneda } from '@/lib/format'
 import { computeFechaFin, computeProximaActualizacion, daysUntil, todayISO } from '@/lib/dates'
 import GenerarContratoModal from '@/components/ai/GenerarContratoModal'
 import ArchivoPreviewModal from '@/components/ArchivoPreviewModal'
@@ -79,6 +80,8 @@ const EMPTY: Form = {
   dueno_id: null,
   fecha_inicio: todayISO(),
   fecha_fin: '',
+  moneda: 'ARS',
+  indice_sobre: null,
   monto_inicial: 0,
   monto_actual: 0,
   indice_actualizacion: 'ICL',
@@ -446,6 +449,9 @@ export default function Contratos(): JSX.Element {
       fecha_fin: form.fecha_fin,
       monto_inicial: Number(form.monto_inicial),
       monto_actual: Number(form.monto_actual) || Number(form.monto_inicial),
+      moneda: (form.moneda ?? 'ARS') as Moneda,
+      indice_sobre:
+        form.moneda === 'USD' && form.indice_sobre ? (form.indice_sobre as Moneda) : null,
       indice_actualizacion: form.indice_actualizacion as TipoIndice,
       indice_primario:
         form.indice_actualizacion === 'Combinado' ? (form.indice_primario as TipoIndice) : null,
@@ -603,7 +609,12 @@ export default function Contratos(): JSX.Element {
                       {formatDate(c.fecha_inicio)} → {formatDate(c.fecha_fin)}
                     </td>
                     <td className="px-4 py-3 text-right text-zinc-200 tabular-nums">
-                      {formatARS(c.monto_actual)}
+                      {formatMoneda(c.monto_actual, c.moneda)}
+                      {c.moneda === 'USD' && (
+                        <span className="ml-1 text-[9px] font-semibold text-sky-400 align-top">
+                          USD
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-zinc-400 text-xs">
                       {c.indice_actualizacion === 'Combinado'
@@ -884,9 +895,18 @@ export default function Contratos(): JSX.Element {
             </Field>
           </div>
 
-          {/* Montos */}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Monto inicial" required>
+          {/* Moneda y montos */}
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Moneda">
+              <Select
+                value={form.moneda ?? 'ARS'}
+                onChange={(e) => patch({ moneda: e.target.value as Moneda })}
+              >
+                <option value="ARS">Pesos (ARS)</option>
+                <option value="USD">Dólares (USD)</option>
+              </Select>
+            </Field>
+            <Field label={`Monto inicial${form.moneda === 'USD' ? ' (USD)' : ''}`} required>
               <TextInput
                 type="number"
                 min={0}
@@ -894,7 +914,7 @@ export default function Contratos(): JSX.Element {
                 onChange={(e) => patch({ monto_inicial: Number(e.target.value) })}
               />
             </Field>
-            <Field label="Monto actual">
+            <Field label={`Monto actual${form.moneda === 'USD' ? ' (USD)' : ''}`}>
               <TextInput
                 type="number"
                 min={0}
@@ -903,6 +923,25 @@ export default function Contratos(): JSX.Element {
               />
             </Field>
           </div>
+          {form.moneda === 'USD' && (
+            <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 p-2.5 text-xs text-sky-300 space-y-2">
+              <p>
+                Contrato en dólares: al registrar cada pago se guarda el equivalente en pesos
+                según la cotización (blue) del día del pago.
+              </p>
+              <div className="flex items-center gap-2 text-zinc-300">
+                <span className="text-zinc-400">El índice se aplica sobre:</span>
+                <Select
+                  className="w-auto"
+                  value={form.indice_sobre ?? 'USD'}
+                  onChange={(e) => patch({ indice_sobre: e.target.value as Moneda })}
+                >
+                  <option value="USD">el monto en dólares</option>
+                  <option value="ARS">el equivalente en pesos (mixto)</option>
+                </Select>
+              </div>
+            </div>
+          )}
 
           {/* Actualización */}
           <div className="pt-2 border-t border-border">

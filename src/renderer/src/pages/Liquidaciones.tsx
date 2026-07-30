@@ -49,7 +49,14 @@ export default function Liquidaciones(): JSX.Element {
   const [propiedades, setPropiedades] = useState<Propiedad[]>([])
   const [duenos, setDuenos] = useState<Dueno[]>([])
   const [pagos, setPagos] = useState<
-    { contrato_id: string; monto: number; monto_comision: number; monto_neto: number }[]
+    {
+      contrato_id: string
+      monto: number
+      monto_comision: number
+      monto_neto: number
+      monto_ars: number | null
+      cotizacion_usada: number | null
+    }[]
   >([])
   const [liqs, setLiqs] = useState<Liquidacion[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,7 +85,7 @@ export default function Liquidaciones(): JSX.Element {
     const [pg, lq] = await Promise.all([
       supabase
         .from('pagos')
-        .select('contrato_id, monto, monto_comision, monto_neto')
+        .select('contrato_id, monto, monto_comision, monto_neto, monto_ars, cotizacion_usada')
         .eq('mes_correspondiente', periodo)
         .eq('estado', 'pagado'),
       supabase.from('liquidaciones').select('*').eq('periodo', periodo)
@@ -116,12 +123,18 @@ export default function Liquidaciones(): JSX.Element {
     return m
   }, [liqs])
 
-  // Agrupar los pagos cobrados del mes por dueño (y por propiedad dentro del dueño)
+  // Agrupar los pagos cobrados del mes por dueño (y por propiedad dentro del dueño).
+  // Todo en PESOS: los contratos en USD se convierten con la cotización guardada en cada
+  // pago, así no se mezclan monedas (bruto_ars = monto_ars; comisión y neto proporcionales).
   const grupos = useMemo(() => {
     const g = new Map<string, Grupo>()
     for (const p of pagos) {
       const c = contratoMap[p.contrato_id]
       if (!c) continue
+      const rate = p.cotizacion_usada // null si es ARS
+      const brutoP = p.monto_ars ?? p.monto
+      const comisionP = rate ? p.monto_comision * rate : p.monto_comision
+      const netoP = brutoP - comisionP
       const prop = propMap[c.propiedad_id]
       const duenoId = prop?.dueno_id ?? c.dueno_id ?? null
       const dueno = duenoId ? duenoMap[duenoId] : undefined
@@ -140,19 +153,21 @@ export default function Liquidaciones(): JSX.Element {
         }
         g.set(key, grp)
       }
-      grp.bruto += p.monto
-      grp.comision += p.monto_comision
-      grp.neto += p.monto_neto
+      grp.bruto += brutoP
+      grp.comision += comisionP
+      grp.neto += netoP
       const dir = prop?.direccion ?? 'Propiedad'
       const pk = c.propiedad_id
       const pr = grp.props.get(pk) ?? { direccion: dir, bruto: 0, comision: 0, neto: 0 }
-      pr.bruto += p.monto
-      pr.comision += p.monto_comision
-      pr.neto += p.monto_neto
+      pr.bruto += brutoP
+      pr.comision += comisionP
+      pr.neto += netoP
       grp.props.set(pk, pr)
     }
     return Array.from(g.values()).sort((a, b) => a.duenoNombre.localeCompare(b.duenoNombre))
   }, [pagos, contratoMap, propMap, duenoMap])
+
+  const hayUSD = useMemo(() => pagos.some((p) => p.cotizacion_usada != null), [pagos])
 
   const totales = useMemo(() => {
     return grupos.reduce(
@@ -277,6 +292,13 @@ export default function Liquidaciones(): JSX.Element {
         <p className="text-xs text-zinc-500">
           Se liquidan los pagos con estado <span className="text-emerald-400">cobrado</span> del
           período.
+          {hayUSD && (
+            <span className="text-zinc-600">
+              {' '}
+              Montos en pesos; los contratos en USD se convierten a la cotización del día de cada
+              pago.
+            </span>
+          )}
         </p>
       </div>
 

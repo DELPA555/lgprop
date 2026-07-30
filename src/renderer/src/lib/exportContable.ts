@@ -2,7 +2,7 @@
 // propiedad, dueño, inquilino, bruto, comisión, neto, estado de pago.
 // Separador ';' + BOM UTF-8 para compatibilidad con Excel en español (AR).
 import { supabase } from '@/lib/supabase/client'
-import type { EstadoPago } from '@/types/database'
+import type { EstadoPago, Moneda } from '@/types/database'
 
 export type FilaContable = {
   periodo: string // YYYY-MM
@@ -10,6 +10,7 @@ export type FilaContable = {
   propiedad: string
   dueno: string
   inquilino: string
+  moneda: Moneda
   bruto: number
   comision: number
   neto: number
@@ -35,15 +36,18 @@ export async function fetchFilasContables(
       .gte('mes_correspondiente', desdeISO)
       .lte('mes_correspondiente', hastaISO)
       .order('mes_correspondiente'),
-    supabase.from('contratos').select('id, propiedad_id, inquilino_id, dueno_id'),
+    supabase.from('contratos').select('id, propiedad_id, inquilino_id, dueno_id, moneda'),
     supabase.from('propiedades').select('id, direccion, dueno_id'),
     supabase.from('duenos').select('id, nombre'),
     supabase.from('inquilinos').select('id, nombre')
   ])
   if (pg.error) throw new Error(pg.error.message)
 
-  const ctMap: Record<string, { propiedad_id: string; inquilino_id: string; dueno_id: string | null }> = {}
-  for (const c of ct.data ?? []) ctMap[c.id] = c
+  const ctMap: Record<
+    string,
+    { propiedad_id: string; inquilino_id: string; dueno_id: string | null; moneda: Moneda }
+  > = {}
+  for (const c of ct.data ?? []) ctMap[c.id] = c as (typeof ctMap)[string]
   const prMap: Record<string, { direccion: string; dueno_id: string | null }> = {}
   for (const p of pr.data ?? []) prMap[p.id] = p
   const duMap: Record<string, string> = {}
@@ -61,6 +65,7 @@ export async function fetchFilasContables(
       propiedad: prop?.direccion ?? '—',
       dueno: duenoId ? duMap[duenoId] ?? '—' : '—',
       inquilino: c ? iqMap[c.inquilino_id] ?? '—' : '—',
+      moneda: (c?.moneda ?? 'ARS') as Moneda,
       bruto: p.monto,
       comision: p.monto_comision,
       neto: p.monto_neto,
@@ -84,6 +89,7 @@ export function exportContableCSV(filas: FilaContable[], filename: string): void
     'Propiedad',
     'Dueño',
     'Inquilino',
+    'Moneda',
     'Bruto',
     'Comisión',
     'Neto',
@@ -95,6 +101,7 @@ export function exportContableCSV(filas: FilaContable[], filename: string): void
     f.propiedad,
     f.dueno,
     f.inquilino,
+    f.moneda,
     money(f.bruto),
     money(f.comision),
     money(f.neto),
