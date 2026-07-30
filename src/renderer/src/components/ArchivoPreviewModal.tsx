@@ -99,7 +99,7 @@ export default function ArchivoPreviewModal({
         const viewport = page.getViewport({ scale: 2 })
         canvas.width = viewport.width
         canvas.height = viewport.height
-        await page.render({ canvas, canvasContext: ctx, viewport }).promise
+        await page.render({ canvasContext: ctx, viewport }).promise
       } catch (e) {
         if (!cancelled) setError((e as Error).message || 'No se pudo mostrar esta página.')
       }
