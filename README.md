@@ -295,6 +295,57 @@ Migración: `supabase/migrations/0011_contratos_archivos.sql` (bucket **privado*
 - El bucket es **privado**: los archivos se acceden con **URLs firmadas** temporales; sin
   autenticación no se pueden ver ni descargar (`lib/contratoArchivos.ts`).
 
+## Moneda: contratos en dólares o mixtos
+
+Migraciones: `0012_moneda.sql` + `0013_cron_cotizaciones.sql`.
+
+- Los contratos tienen **`moneda` (ARS/USD)** y, para mixtos, `indice_sobre` (sobre qué
+  moneda se aplica el índice).
+- **Cotización automática**: la Edge Function `actualizar-cotizaciones` trae oficial, blue y
+  MEP desde **dolarapi.com** (⚠️ dominio pelado, sin `api.`) con respaldo en bluelytics, y
+  las guarda en `cotizaciones_dolar`. Cron diario (`0013`). Deploy:
+  `supabase functions deploy actualizar-cotizaciones`.
+- **Pagos en USD**: un trigger guarda el equivalente en pesos (`monto_ars`) según la
+  cotización **blue** (configurable en *Ajustes*) del día del pago. En la tabla de Pagos se
+  ve el monto en USD y su ≈ pesos.
+- **Dashboard**: las comisiones cobradas se muestran separadas ARS + USD.
+- **Liquidaciones**: los montos se consolidan en pesos (los USD se convierten con la
+  cotización guardada de cada pago; no se mezclan monedas al sumar).
+- **Ajustes**: selector de qué cotización usar (blue/MEP/oficial) + últimas cotizaciones.
+
+## Auditoría / log de actividad
+
+Migración: `0014_log_actividad.sql` (tabla `log_actividad` + triggers).
+
+- Se registran automáticamente (vía **triggers** que capturan `auth.uid()` + valores
+  antes/después) las acciones sensibles: **cobrar un pago**, **editar el monto/estado** o
+  **eliminar un contrato**, cambiar el **% de comisión** (dueño o propiedad) y marcar una
+  **liquidación como enviada**.
+- Vista **Actividad** (`/actividad`, **solo admin**): filtra por usuario, tipo de acción y
+  rango de fechas. La tabla `log_actividad` sólo la puede **leer el admin** (RLS); la
+  escritura la hacen funciones `SECURITY DEFINER`.
+
+## Backups automáticos
+
+Migraciones: `0015_backups_bucket.sql` + `0016_cron_backup.sql`. Edge Function `backup-db`.
+
+- **Semanal (domingos)**: la Edge Function `backup-db` exporta **todas las tablas** a un
+  JSON y lo sube al bucket privado **`backups`** como `backup-YYYY-MM-DD.json`. Conserva los
+  **últimos 8** (borra los más viejos). Deploy: `supabase functions deploy backup-db`.
+- El bucket es **privado**: solo el **admin** puede listar/descargar (RLS).
+- En **Ajustes → Backups** (solo admin): ver la lista, **Descargar** cada backup, o
+  **Generar ahora** uno on-demand.
+
+### Bajar un backup a Google Drive (manual, 1 vez cada tanto)
+
+1. Entrá a **Ajustes → Backups** y tocá **Descargar** en el backup más reciente (baja el
+   `.json` a tu carpeta de Descargas). *(Alternativa: Supabase → Storage → bucket `backups`.)*
+2. Abrí [drive.google.com](https://drive.google.com), entrá a la carpeta donde guardás las
+   copias de LG Prop y **arrastrá** el archivo ahí (o *Nuevo → Subir archivo*).
+
+No se automatiza la subida a Drive por ahora; con este paso simple queda una copia fuera de
+Supabase. Para restaurar, el JSON tiene todas las tablas con sus filas.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).

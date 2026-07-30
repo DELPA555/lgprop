@@ -18,6 +18,7 @@ export type TipoIndice =
   | 'Manual'
 export type EstadoContrato = 'activo' | 'vencido' | 'rescindido'
 export type EstadoDeposito = 'retenido' | 'devuelto'
+export type Moneda = 'ARS' | 'USD'
 export type EstadoPago = 'pagado' | 'pendiente' | 'atrasado'
 export type EstadoLiquidacion = 'pendiente' | 'enviada'
 export type EstadoMantenimiento = 'pendiente' | 'en_proceso' | 'resuelto'
@@ -81,6 +82,8 @@ export type Contrato = {
   indice_actualizacion: TipoIndice
   indice_primario: TipoIndice | null
   indice_secundario: TipoIndice | null
+  moneda: Moneda
+  indice_sobre: Moneda | null
   frecuencia_actualizacion_meses: number
   duracion_meses: number
   porcentaje_fijo: number | null
@@ -128,7 +131,19 @@ export type Pago = {
   porcentaje_comision_aplicado: number
   monto_comision: number
   monto_neto: number
+  cotizacion_usada: number | null
+  monto_ars: number | null
   notas: string | null
+  created_at: string
+}
+
+export type CotizacionDolar = {
+  id: string
+  fecha: string
+  tipo: string
+  compra: number | null
+  venta: number | null
+  fuente: string | null
   created_at: string
 }
 
@@ -184,6 +199,17 @@ export type Configuracion = {
   clave: string
   valor: string
   updated_at: string
+}
+
+export type LogActividad = {
+  id: string
+  usuario_id: string | null
+  usuario_nombre: string | null
+  accion: string
+  tabla_afectada: string
+  registro_id: string | null
+  detalle: Record<string, unknown> | null
+  fecha_hora: string
 }
 
 export type ContratoArchivo = {
@@ -246,6 +272,8 @@ export type Database = {
       mantenimiento: TableDef<Mantenimiento>
       seguros_propiedad: TableDef<SeguroPropiedad>
       configuracion: TableDef<Configuracion>
+      cotizaciones_dolar: TableDef<CotizacionDolar>
+      log_actividad: TableDef<LogActividad>
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -256,6 +284,7 @@ export type Database = {
       estado_contrato: EstadoContrato
       estado_pago: EstadoPago
       estado_deposito: EstadoDeposito
+      moneda: Moneda
       estado_liquidacion: EstadoLiquidacion
       estado_mantenimiento: EstadoMantenimiento
       tipo_seguro: TipoSeguro

@@ -16,6 +16,8 @@
     "publish:win": "electron-vite build && electron-builder --win --publish always"
   },
   "dependencies": {
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
     "@supabase/supabase-js": "^2.45.4",
     "date-fns": "^4.1.0",
     "electron-updater": "^6.8.9",

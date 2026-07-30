@@ -7,12 +7,12 @@ import { useToast } from '@/components/ui/Toast'
 import { todayISO } from '@/lib/dates'
 
 export const MANT_ESTADOS: { id: EstadoMantenimiento; label: string; badge: string }[] = [
-  { id: 'pendiente', label: 'Pendiente', badge: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-  { id: 'en_proceso', label: 'En proceso', badge: 'bg-sky-500/10 text-sky-400 border-sky-500/20' },
+  { id: 'pendiente', label: 'Pendiente', badge: 'bg-warn/10 text-warn border-warn/25' },
+  { id: 'en_proceso', label: 'En proceso', badge: 'bg-info/10 text-info border-info/25' },
   {
     id: 'resuelto',
     label: 'Resuelto',
-    badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+    badge: 'bg-ok/10 text-ok border-ok/25'
   }
 ]
 export const mantEstadoLabel = (e: EstadoMantenimiento): string =>
