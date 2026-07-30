@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Save, Loader2, BellRing, DollarSign, Database, Download, RefreshCw } from 'lucide-react'
+import { Save, Loader2, BellRing, DollarSign, Database, Download, RefreshCw, Building } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
@@ -9,6 +9,8 @@ import { formatDate } from '@/lib/format'
 
 const CLAVE_DIAS = 'avisos_dias_anticipacion_contrato'
 const CLAVE_COTIZ = 'cotizacion_pagos_tipo'
+const CLAVE_CORTE = 'consorcios_corte_liquidacion_dia'
+const CLAVE_RECLAMO = 'consorcios_reclamo_dias_alerta'
 const PRESETS = [30, 60, 90]
 const TIPOS_COTIZ = [
   { id: 'blue', label: 'Blue' },
@@ -26,6 +28,9 @@ export default function Ajustes(): JSX.Element {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingCotiz, setSavingCotiz] = useState(false)
+  const [corteDia, setCorteDia] = useState<number>(10)
+  const [reclamoDias, setReclamoDias] = useState<number>(15)
+  const [savingConsorcio, setSavingConsorcio] = useState(false)
   const [backups, setBackups] = useState<{ name: string; size: number | null }[]>([])
   const [genBackup, setGenBackup] = useState(false)
 
@@ -67,10 +72,12 @@ export default function Ajustes(): JSX.Element {
       const { data } = await supabase
         .from('configuracion')
         .select('clave, valor')
-        .in('clave', [CLAVE_DIAS, CLAVE_COTIZ])
+        .in('clave', [CLAVE_DIAS, CLAVE_COTIZ, CLAVE_CORTE, CLAVE_RECLAMO])
       for (const row of data ?? []) {
         if (row.clave === CLAVE_DIAS && row.valor) setDias(parseInt(row.valor, 10) || 60)
         if (row.clave === CLAVE_COTIZ && row.valor) setCotizTipo(row.valor)
+        if (row.clave === CLAVE_CORTE && row.valor) setCorteDia(parseInt(row.valor, 10) || 10)
+        if (row.clave === CLAVE_RECLAMO && row.valor) setReclamoDias(parseInt(row.valor, 10) || 15)
       }
       // Últimas cotizaciones (una por tipo) para mostrar de referencia
       const { data: cot } = await supabase
@@ -85,6 +92,23 @@ export default function Ajustes(): JSX.Element {
       setLoading(false)
     })()
   }, [])
+
+  const saveConsorcio = async (): Promise<void> => {
+    if (corteDia < 1 || corteDia > 28) return toast.error('El día de corte debe estar entre 1 y 28')
+    if (reclamoDias < 1) return toast.error('Los días de reclamo deben ser mayores a 0')
+    setSavingConsorcio(true)
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('configuracion').upsert(
+      [
+        { clave: CLAVE_CORTE, valor: String(corteDia), updated_at: now },
+        { clave: CLAVE_RECLAMO, valor: String(reclamoDias), updated_at: now }
+      ],
+      { onConflict: 'clave' }
+    )
+    setSavingConsorcio(false)
+    if (error) return void toast.error(error.message)
+    toast.success('Configuración de consorcios guardada')
+  }
 
   const saveCotiz = async (): Promise<void> => {
     setSavingCotiz(true)
@@ -227,6 +251,55 @@ export default function Ajustes(): JSX.Element {
             )}
           </div>
         )}
+      </div>
+
+      <div className="card p-5 max-w-xl mt-5">
+        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <Building size={16} className="text-zinc-400" /> Consorcios · avisos automáticos
+        </h2>
+        <p className="text-sm text-zinc-400 mt-1.5">
+          Cuándo el motor de avisos diario alerta por liquidaciones de expensas sin generar y por
+          reclamos sin resolver.
+        </p>
+        {!loading && (
+          <div className="mt-4 flex items-end gap-3 flex-wrap">
+            <div className="w-48">
+              <Field label="Día de corte de liquidación">
+                <TextInput
+                  type="number"
+                  min={1}
+                  max={28}
+                  value={corteDia}
+                  onChange={(e) => setCorteDia(Number(e.target.value))}
+                />
+              </Field>
+            </div>
+            <div className="w-48">
+              <Field label="Avisar reclamos sin resolver (días)">
+                <TextInput
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={reclamoDias}
+                  onChange={(e) => setReclamoDias(Number(e.target.value))}
+                />
+              </Field>
+            </div>
+            <button
+              onClick={saveConsorcio}
+              disabled={savingConsorcio}
+              className="btn-primary text-sm flex items-center gap-2"
+            >
+              {savingConsorcio ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              Guardar
+            </button>
+          </div>
+        )}
+        <p className="text-xs text-zinc-600 mt-3">
+          Pasado el <span className="text-zinc-300">día de corte</span> de cada mes, si falta la
+          liquidación del mes anterior de un consorcio con unidades, se avisa. Los reclamos abiertos
+          hace más de esos días también.
+        </p>
       </div>
 
       <div className="card p-5 max-w-xl mt-5">

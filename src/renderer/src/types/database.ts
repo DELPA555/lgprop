@@ -31,6 +31,9 @@ export type TipoNotificacion =
   | 'expensas_pendientes'
   | 'deposito_pendiente'
   | 'seguro_por_vencer'
+  | 'expensas_liquidacion_pendiente'
+  | 'expensa_impaga'
+  | 'reclamo_sin_resolver'
 
 export type Dueno = {
   id: string
@@ -235,6 +238,126 @@ export type UsuarioEquipo = {
   created_at: string
 }
 
+// ── Módulo Consorcios ────────────────────────────────────────────────────
+export type Consorcio = {
+  id: string
+  nombre: string
+  direccion: string | null
+  cuit: string | null
+  cantidad_unidades: number
+  administrador_usuario_id: string | null
+  administrador_nombre: string | null
+  fecha_inicio_administracion: string
+  notas: string | null
+  created_at: string
+}
+
+export type PropietarioConsorcio = {
+  id: string
+  nombre: string
+  telefono: string | null
+  email: string | null
+  cbu: string | null
+  alias_cbu: string | null
+  notas: string | null
+  created_at: string
+}
+
+export type UnidadFuncional = {
+  id: string
+  consorcio_id: string
+  identificador: string
+  propietario_id: string | null
+  porcentaje_fiscal: number
+  notas: string | null
+  created_at: string
+}
+
+export type ProveedorEdificio = {
+  id: string
+  consorcio_id: string
+  nombre: string
+  servicio: string | null
+  telefono: string | null
+  email: string | null
+  frecuencia_pago: string | null
+  condiciones: string | null
+  notas: string | null
+  created_at: string
+}
+
+export type GastoEdificio = {
+  id: string
+  consorcio_id: string
+  proveedor_id: string | null
+  concepto: string
+  categoria: string | null
+  monto: number
+  fecha: string
+  mes_correspondiente: string
+  notas: string | null
+  created_at: string
+}
+
+export type LiquidacionExpensas = {
+  id: string
+  consorcio_id: string
+  mes: string
+  total_gastos: number
+  monto_fondo_reserva_del_mes: number
+  base_a_repartir: number
+  fecha_generacion: string
+  generada_por: string | null
+  notas: string | null
+  created_at: string
+}
+
+export type ExpensaPorUnidad = {
+  id: string
+  liquidacion_id: string
+  unidad_id: string | null
+  identificador: string | null
+  porcentaje_aplicado: number
+  monto_a_pagar: number
+  estado: EstadoPago
+  fecha_pago: string | null
+  created_at: string
+}
+
+export type MovimientoFondoReserva = {
+  id: string
+  consorcio_id: string
+  fecha: string
+  mes: string | null
+  concepto: string
+  monto: number
+  liquidacion_id: string | null
+  created_at: string
+}
+
+export type ReclamoConsorcio = {
+  id: string
+  consorcio_id: string
+  unidad_id: string | null
+  descripcion: string
+  estado: EstadoMantenimiento
+  fecha_reporte: string
+  fecha_resolucion: string | null
+  notas: string | null
+  created_at: string
+}
+
+export type Asamblea = {
+  id: string
+  consorcio_id: string
+  fecha: string
+  temas: string | null
+  acta_path: string | null
+  acta_nombre: string | null
+  acta_tipo: string | null
+  created_at: string
+}
+
 export type Notificacion = {
   id: string
   tipo: TipoNotificacion
@@ -276,6 +399,16 @@ export type Database = {
       configuracion: TableDef<Configuracion>
       cotizaciones_dolar: TableDef<CotizacionDolar>
       log_actividad: TableDef<LogActividad>
+      consorcios: TableDef<Consorcio>
+      propietarios_consorcio: TableDef<PropietarioConsorcio>
+      unidades_funcionales: TableDef<UnidadFuncional>
+      proveedores_edificio: TableDef<ProveedorEdificio>
+      gastos_edificio: TableDef<GastoEdificio>
+      liquidaciones_expensas: TableDef<LiquidacionExpensas>
+      expensas_por_unidad: TableDef<ExpensaPorUnidad>
+      fondo_reserva: TableDef<MovimientoFondoReserva>
+      reclamos_consorcio: TableDef<ReclamoConsorcio>
+      asambleas: TableDef<Asamblea>
     }
     Views: Record<string, never>
     Functions: Record<string, never>

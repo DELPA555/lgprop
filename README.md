@@ -346,6 +346,76 @@ Migraciones: `0015_backups_bucket.sql` + `0016_cron_backup.sql`. Edge Function `
 No se automatiza la subida a Drive por ahora; con este paso simple queda una copia fuera de
 Supabase. Para restaurar, el JSON tiene todas las tablas con sus filas.
 
+## Consorcios (módulo nuevo — en construcción por tandas)
+
+Servicio de **administración de consorcios de edificios**, dentro de LG Prop (grupo
+**Consorcios** en el sidebar). Reutiliza el sistema de diseño, RLS (`is_active_member`),
+auditoría, el ícono de WhatsApp y el visor de PDF del resto de la app.
+
+Migración: `0019_consorcios.sql`.
+
+**Tanda 1 (lista): Consorcios + Unidades funcionales**
+
+- **`consorcios`**: edificios administrados (nombre, dirección, CUIT, cantidad de unidades,
+  administrador designado —usuario del equipo o externo—, fecha de inicio de administración).
+  Alta/baja quedan registradas en el log de auditoría.
+- **`propietarios_consorcio`**: tabla **propia** de propietarios de unidades (independiente de
+  `duenos` de alquiler, para no mezclar los dos negocios). Nombre, teléfono, email, CBU/alias.
+- **`unidades_funcionales`**: por consorcio, cada unidad (piso/depto) con su propietario y su
+  **% fiscal** (cuánto paga de expensas sobre el total). La app valida que la suma de los % de
+  un consorcio **no supere 100%** y avisa (chip) cuando el total ≠ 100%.
+- **Vistas**: `Consorcios` (ABM + % asignado por edificio) y detalle `/consorcios/:id`
+  (info del edificio + ABM de unidades con alta rápida de propietario y contacto por WhatsApp).
+
+**Tanda 2 (lista): Proveedores + Gastos** — migración `0020_gastos_proveedores.sql`.
+
+- **`proveedores_edificio`**: proveedores por edificio (nombre, servicio, contacto con WhatsApp,
+  frecuencia de pago, contrato/condiciones).
+- **`gastos_edificio`**: gastos por mes y **categoría** (limpieza, seguridad, ascensor, luz, gas,
+  sueldos, etc.), con proveedor asociado, monto y a qué mes de liquidación imputan.
+- Ambos se administran como **secciones dentro del detalle del consorcio**
+  (`/consorcios/:id`), con selector de mes y total del mes en Gastos.
+
+**Tanda 3 (lista): Liquidación de expensas + Fondo de reserva** — migración
+`0021_liquidacion_expensas.sql`.
+
+- **`liquidaciones_expensas`**: una por consorcio/mes (única). Guarda total de gastos, fondo de
+  reserva del mes y base a repartir.
+- **`expensas_por_unidad`**: lo que le toca a cada unidad = base × (% fiscal). Estado
+  pendiente/pagado/atrasado + fecha de pago.
+- **`fondo_reserva`**: movimientos (aporte +, egreso −) con **saldo acumulado**. Al generar una
+  liquidación con fondo del mes, se suma automáticamente un aporte.
+- **Botón “Generar liquidación del mes”**: toma los gastos del mes + el fondo ingresado, reparte
+  por % fiscal entre las unidades, y deja cada expensa lista para marcar como pagada. Avisa si los
+  % no suman 100%. Se puede eliminar para regenerar.
+- **PDF por unidad** (`lib/expensasPdf.ts`): resumen para enviarle al propietario, con el detalle
+  de gastos, el fondo, la base y su parte a pagar.
+
+**Tanda 4 (lista): Reclamos + Asambleas** — migración `0022_reclamos_asambleas.sql`.
+
+- **`reclamos_consorcio`**: reclamos del edificio o de una unidad puntual, con estado
+  pendiente/en_proceso/resuelto (reutiliza el enum y el patrón de Mantenimiento de alquileres) y
+  filtro por estado.
+- **`asambleas`**: registro de asambleas (fecha + temas tratados) con **acta adjunta**. El acta se
+  guarda en el mismo Storage que los contratos (bucket `contratos-archivos`, prefijo `asambleas/`)
+  y se ve con el mismo visor de **pdf.js**.
+
+**Tanda 5 (lista): Avisos automáticos** — migración `0023_avisos_consorcios.sql`.
+
+Integrados al motor diario `enviar-avisos` (mismo cron/email digest que alquileres):
+
+- **Liquidación de expensas sin generar**: pasado el *día de corte* del mes, si falta la
+  liquidación del mes anterior de un consorcio con unidades.
+- **Expensa de unidad impaga**: expensas de meses ya vencidos con estado distinto de *pagado*.
+- **Reclamo sin resolver** hace más de *N* días.
+
+Configurables en **Ajustes → Consorcios · avisos** (día de corte, días de reclamo). Los avisos
+solo cuentan propiedades/consorcios reales y se deduplican como el resto (no repiten el mismo
+aviso por 25 días).
+
+**Módulo Consorcios COMPLETO** (tandas 1–5). Falta solo tu prueba end-to-end y, más adelante, los
+refinamientos que surjan del uso real.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).
