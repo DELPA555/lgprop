@@ -425,6 +425,19 @@ Rivadavia 2500"). Captura rápida (título + Enter), o con detalle: prioridad, a
 propiedad relacionada y fecha límite (marca en rojo si venció). Filtro pendientes/todas/hechas y
 check para completar.
 
+## Prospectos (CRM) + Agenda de visitas
+
+Migración `0025_prospectos_visitas.sql`. Secciones **Prospectos** y **Agenda** (grupo Operación).
+
+- **Prospectos**: pipeline simple de interesados en 3 columnas
+  (**Interesado → Reservó / Descartado**), filtrable por propiedad, con nombre, contacto
+  (WhatsApp), origen, cuándo consultó/visitó y notas. Se mueve de estado con un clic.
+- **Agenda**: calendario mensual **in-app** (clic en un día para agendar) + panel de **próximas
+  visitas**. Cada visita tiene fecha/hora, propiedad, interesado (opcional), quién coordina y
+  estado (programada/realizada/cancelada).
+- **Recordatorio**: el motor `enviar-avisos` avisa las visitas programadas dentro de las próximas
+  ~48 h (nuevo tipo `visita_proxima`), integrado al mismo email/digest diario.
+
 ## Recibos de pago (PDF)
 
 `lib/reciboPdf.ts`. En **Pagos**, cada cuota marcada como **cobrada** muestra un botón de recibo

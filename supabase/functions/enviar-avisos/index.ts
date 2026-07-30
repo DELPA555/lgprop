@@ -39,6 +39,7 @@ type Tipo =
   | 'expensas_liquidacion_pendiente'
   | 'expensa_impaga'
   | 'reclamo_sin_resolver'
+  | 'visita_proxima'
 
 interface NuevaNotif {
   tipo: Tipo
@@ -320,6 +321,32 @@ Deno.serve(async () => {
     }
   }
 
+  // 10) Agenda: visitas programadas en las próximas ~48 h (recordatorio)
+  {
+    const ahora = new Date().toISOString()
+    const en48 = new Date(Date.now() + 48 * 3600 * 1000).toISOString()
+    const { data } = await supabase
+      .from('visitas')
+      .select('id, fecha, visitante, propiedades(direccion)')
+      .eq('estado', 'programada')
+      .gte('fecha', ahora)
+      .lte('fecha', en48)
+    for (const v of data ?? []) {
+      const dir = (v as any)?.propiedades?.direccion ?? v.visitante ?? 'una propiedad'
+      const cuando = new Date(v.fecha).toLocaleString('es-AR', {
+        dateStyle: 'short',
+        timeStyle: 'short'
+      })
+      pendientes.push({
+        tipo: 'visita_proxima',
+        contrato_id: null,
+        metadata: { ref: `vis|${v.id}` },
+        titulo: `Visita próxima — ${dir}`,
+        mensaje: `Hay una visita agendada para el ${cuando}${v.visitante ? ` con ${v.visitante}` : ''} en ${dir}. Coordiná los detalles con anticipación.`
+      })
+    }
+  }
+
   // Dedup contra notificaciones recientes sin leer
   const { data: recientes } = await supabase
     .from('notificaciones')
@@ -349,7 +376,8 @@ Deno.serve(async () => {
       seguro_por_vencer: [],
       expensas_liquidacion_pendiente: [],
       expensa_impaga: [],
-      reclamo_sin_resolver: []
+      reclamo_sin_resolver: [],
+      visita_proxima: []
     }
     for (const n of aInsertar) grupos[n.tipo].push(n)
 
@@ -362,7 +390,8 @@ Deno.serve(async () => {
       seguro_por_vencer: 'Seguros / ART por vencer',
       expensas_liquidacion_pendiente: 'Consorcios · liquidaciones por generar',
       expensa_impaga: 'Consorcios · expensas impagas',
-      reclamo_sin_resolver: 'Consorcios · reclamos sin resolver'
+      reclamo_sin_resolver: 'Consorcios · reclamos sin resolver',
+      visita_proxima: 'Agenda · visitas próximas'
     }
 
     const secciones = (Object.keys(grupos) as Tipo[])

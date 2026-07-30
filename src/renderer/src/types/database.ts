@@ -34,6 +34,7 @@ export type TipoNotificacion =
   | 'expensas_liquidacion_pendiente'
   | 'expensa_impaga'
   | 'reclamo_sin_resolver'
+  | 'visita_proxima'
 
 export type Dueno = {
   id: string
@@ -358,6 +359,36 @@ export type Asamblea = {
   created_at: string
 }
 
+export type EstadoInteresado = 'interesado' | 'reservo' | 'descartado'
+export type Interesado = {
+  id: string
+  propiedad_id: string | null
+  nombre: string
+  telefono: string | null
+  email: string | null
+  fecha_consulta: string
+  fecha_visita: string | null
+  estado: EstadoInteresado
+  origen: string | null
+  notas: string | null
+  creado_por: string | null
+  created_at: string
+}
+
+export type EstadoVisita = 'programada' | 'realizada' | 'cancelada'
+export type Visita = {
+  id: string
+  propiedad_id: string | null
+  interesado_id: string | null
+  visitante: string | null
+  fecha: string
+  asignado_a: string | null
+  estado: EstadoVisita
+  notas: string | null
+  recordatorio_enviado: boolean
+  created_at: string
+}
+
 export type PrioridadTarea = 'baja' | 'normal' | 'alta'
 export type Tarea = {
   id: string
@@ -425,6 +456,8 @@ export type Database = {
       reclamos_consorcio: TableDef<ReclamoConsorcio>
       asambleas: TableDef<Asamblea>
       tareas: TableDef<Tarea>
+      interesados: TableDef<Interesado>
+      visitas: TableDef<Visita>
     }
     Views: Record<string, never>
     Functions: Record<string, never>
