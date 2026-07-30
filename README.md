@@ -346,6 +346,30 @@ Migraciones: `0015_backups_bucket.sql` + `0016_cron_backup.sql`. Edge Function `
 No se automatiza la subida a Drive por ahora; con este paso simple queda una copia fuera de
 Supabase. Para restaurar, el JSON tiene todas las tablas con sus filas.
 
+## Consorcios (módulo nuevo — en construcción por tandas)
+
+Servicio de **administración de consorcios de edificios**, dentro de LG Prop (grupo
+**Consorcios** en el sidebar). Reutiliza el sistema de diseño, RLS (`is_active_member`),
+auditoría, el ícono de WhatsApp y el visor de PDF del resto de la app.
+
+Migración: `0019_consorcios.sql`.
+
+**Tanda 1 (lista): Consorcios + Unidades funcionales**
+
+- **`consorcios`**: edificios administrados (nombre, dirección, CUIT, cantidad de unidades,
+  administrador designado —usuario del equipo o externo—, fecha de inicio de administración).
+  Alta/baja quedan registradas en el log de auditoría.
+- **`propietarios_consorcio`**: tabla **propia** de propietarios de unidades (independiente de
+  `duenos` de alquiler, para no mezclar los dos negocios). Nombre, teléfono, email, CBU/alias.
+- **`unidades_funcionales`**: por consorcio, cada unidad (piso/depto) con su propietario y su
+  **% fiscal** (cuánto paga de expensas sobre el total). La app valida que la suma de los % de
+  un consorcio **no supere 100%** y avisa (chip) cuando el total ≠ 100%.
+- **Vistas**: `Consorcios` (ABM + % asignado por edificio) y detalle `/consorcios/:id`
+  (info del edificio + ABM de unidades con alta rápida de propietario y contacto por WhatsApp).
+
+**Próximas tandas (pendientes)**: 2) Gastos + Proveedores · 3) Liquidación de expensas +
+Fondo de reserva · 4) Reclamos + Asambleas · 5) Avisos automáticos integrados al cron.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).

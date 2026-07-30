@@ -235,6 +235,41 @@ export type UsuarioEquipo = {
   created_at: string
 }
 
+// ── Módulo Consorcios ────────────────────────────────────────────────────
+export type Consorcio = {
+  id: string
+  nombre: string
+  direccion: string | null
+  cuit: string | null
+  cantidad_unidades: number
+  administrador_usuario_id: string | null
+  administrador_nombre: string | null
+  fecha_inicio_administracion: string
+  notas: string | null
+  created_at: string
+}
+
+export type PropietarioConsorcio = {
+  id: string
+  nombre: string
+  telefono: string | null
+  email: string | null
+  cbu: string | null
+  alias_cbu: string | null
+  notas: string | null
+  created_at: string
+}
+
+export type UnidadFuncional = {
+  id: string
+  consorcio_id: string
+  identificador: string
+  propietario_id: string | null
+  porcentaje_fiscal: number
+  notas: string | null
+  created_at: string
+}
+
 export type Notificacion = {
   id: string
   tipo: TipoNotificacion
@@ -276,6 +311,9 @@ export type Database = {
       configuracion: TableDef<Configuracion>
       cotizaciones_dolar: TableDef<CotizacionDolar>
       log_actividad: TableDef<LogActividad>
+      consorcios: TableDef<Consorcio>
+      propietarios_consorcio: TableDef<PropietarioConsorcio>
+      unidades_funcionales: TableDef<UnidadFuncional>
     }
     Views: Record<string, never>
     Functions: Record<string, never>

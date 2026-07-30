@@ -15,7 +15,8 @@ import {
   Settings,
   ScrollText,
   LogOut,
-  Home
+  Home,
+  Building
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
@@ -51,6 +52,10 @@ const GROUPS: NavGroup[] = [
       { to: '/actualizaciones', label: 'Actualizaciones', Icon: Calculator },
       { to: '/indices', label: 'Índices', Icon: TrendingUp }
     ]
+  },
+  {
+    title: 'Consorcios',
+    items: [{ to: '/consorcios', label: 'Consorcios', Icon: Building }]
   },
   {
     title: 'Sistema',
