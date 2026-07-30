@@ -22,6 +22,7 @@ import Ajustes from './pages/Ajustes'
 import Actividad from './pages/Actividad'
 import Consorcios from './pages/Consorcios'
 import ConsorcioDetalle from './pages/ConsorcioDetalle'
+import Tareas from './pages/Tareas'
 
 function FullScreenConfig(): JSX.Element {
   return (
@@ -72,6 +73,7 @@ function AppRoutes(): JSX.Element {
         <Route path="/propiedades" element={<Propiedades />} />
         <Route path="/propiedades/:id" element={<PropiedadDetalle />} />
         <Route path="/mantenimiento" element={<Mantenimiento />} />
+        <Route path="/tareas" element={<Tareas />} />
         <Route path="/duenos" element={<Duenos />} />
         <Route path="/inquilinos" element={<Inquilinos />} />
         <Route path="/contratos" element={<Contratos />} />

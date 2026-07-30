@@ -416,6 +416,21 @@ aviso por 25 días).
 **Módulo Consorcios COMPLETO** (tandas 1–5). Falta solo tu prueba end-to-end y, más adelante, los
 refinamientos que surjan del uso real.
 
+## Tareas internas / checklist
+
+Migración `0024_tareas.sql`. Sección **Tareas** (grupo Operación).
+
+Pendientes propios del equipo, **no ligados a los avisos automáticos** (ej: "llamar al plomero de
+Rivadavia 2500"). Captura rápida (título + Enter), o con detalle: prioridad, asignada a un miembro,
+propiedad relacionada y fecha límite (marca en rojo si venció). Filtro pendientes/todas/hechas y
+check para completar.
+
+## Recibos de pago (PDF)
+
+`lib/reciboPdf.ts`. En **Pagos**, cada cuota marcada como **cobrada** muestra un botón de recibo
+que genera un **PDF para el inquilino** (comprobante interno con inquilino, propiedad, período,
+concepto y total; en ARS o USD). Aclara que **no es un comprobante fiscal AFIP**.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).
