@@ -332,6 +332,29 @@ export type MovimientoFondoReserva = {
   created_at: string
 }
 
+export type ReclamoConsorcio = {
+  id: string
+  consorcio_id: string
+  unidad_id: string | null
+  descripcion: string
+  estado: EstadoMantenimiento
+  fecha_reporte: string
+  fecha_resolucion: string | null
+  notas: string | null
+  created_at: string
+}
+
+export type Asamblea = {
+  id: string
+  consorcio_id: string
+  fecha: string
+  temas: string | null
+  acta_path: string | null
+  acta_nombre: string | null
+  acta_tipo: string | null
+  created_at: string
+}
+
 export type Notificacion = {
   id: string
   tipo: TipoNotificacion
@@ -381,6 +404,8 @@ export type Database = {
       liquidaciones_expensas: TableDef<LiquidacionExpensas>
       expensas_por_unidad: TableDef<ExpensaPorUnidad>
       fondo_reserva: TableDef<MovimientoFondoReserva>
+      reclamos_consorcio: TableDef<ReclamoConsorcio>
+      asambleas: TableDef<Asamblea>
     }
     Views: Record<string, never>
     Functions: Record<string, never>

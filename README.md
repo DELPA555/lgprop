@@ -391,7 +391,17 @@ Migración: `0019_consorcios.sql`.
 - **PDF por unidad** (`lib/expensasPdf.ts`): resumen para enviarle al propietario, con el detalle
   de gastos, el fondo, la base y su parte a pagar.
 
-**Próximas tandas (pendientes)**: 4) Reclamos + Asambleas · 5) Avisos automáticos integrados al cron.
+**Tanda 4 (lista): Reclamos + Asambleas** — migración `0022_reclamos_asambleas.sql`.
+
+- **`reclamos_consorcio`**: reclamos del edificio o de una unidad puntual, con estado
+  pendiente/en_proceso/resuelto (reutiliza el enum y el patrón de Mantenimiento de alquileres) y
+  filtro por estado.
+- **`asambleas`**: registro de asambleas (fecha + temas tratados) con **acta adjunta**. El acta se
+  guarda en el mismo Storage que los contratos (bucket `contratos-archivos`, prefijo `asambleas/`)
+  y se ve con el mismo visor de **pdf.js**.
+
+**Próxima tanda (pendiente)**: 5) Avisos automáticos integrados al cron (liquidación por generar,
+expensas impagas, reclamos sin resolver).
 
 ## Roles
 

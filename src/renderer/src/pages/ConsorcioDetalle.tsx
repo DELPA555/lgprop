@@ -20,6 +20,8 @@ import ProveedoresSection from '@/components/consorcios/ProveedoresSection'
 import GastosSection from '@/components/consorcios/GastosSection'
 import LiquidacionExpensasSection from '@/components/consorcios/LiquidacionExpensasSection'
 import FondoReservaSection from '@/components/consorcios/FondoReservaSection'
+import ReclamosSection from '@/components/consorcios/ReclamosSection'
+import AsambleasSection from '@/components/consorcios/AsambleasSection'
 
 const NUEVO = '__new__'
 
@@ -343,6 +345,10 @@ export default function ConsorcioDetalle(): JSX.Element {
           {/* Tanda 3: liquidación de expensas + fondo de reserva */}
           <LiquidacionExpensasSection consorcio={cons} />
           <FondoReservaSection consorcioId={id} />
+
+          {/* Tanda 4: reclamos + asambleas */}
+          <ReclamosSection consorcioId={id} />
+          <AsambleasSection consorcioId={id} />
         </>
       )}
 
