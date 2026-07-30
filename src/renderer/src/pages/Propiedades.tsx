@@ -9,6 +9,7 @@ import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { Field, TextInput, TextArea, Select } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
+import EstadoChip from '@/components/ui/EstadoChip'
 import { formatARS } from '@/lib/format'
 
 type Form = Partial<Propiedad>
@@ -20,6 +21,7 @@ const EMPTY: Form = {
   monto_expensas: 0,
   paga_expensas: 'inquilino',
   porcentaje_comision: null,
+  administrada: true,
   notas: ''
 }
 
@@ -27,6 +29,8 @@ const ESTADO_BADGE: Record<EstadoPropiedad, string> = {
   alquilada: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   vacia: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
 }
+
+type AdminFiltro = 'todas' | 'admin' | 'noadmin'
 
 export default function Propiedades(): JSX.Element {
   const toast = useToast()
@@ -41,6 +45,9 @@ export default function Propiedades(): JSX.Element {
   const [saving, setSaving] = useState(false)
   const [delTarget, setDelTarget] = useState<Propiedad | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [adminFiltro, setAdminFiltro] = useState<AdminFiltro>('todas')
+  // Confirmación al quitar "administrada" de una propiedad con contratos activos
+  const [confirmUnmark, setConfirmUnmark] = useState<{ count: number } | null>(null)
 
   const duenoNombre = useMemo(() => {
     const m: Record<string, string> = {}
@@ -70,13 +77,24 @@ export default function Propiedades(): JSX.Element {
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
-    if (!s) return rows
-    return rows.filter((r) =>
-      [r.direccion, r.tipo, r.dueno_id ? duenoNombre[r.dueno_id] : '']
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(s))
-    )
-  }, [rows, q, duenoNombre])
+    return rows
+      .filter((r) =>
+        adminFiltro === 'todas'
+          ? true
+          : adminFiltro === 'admin'
+            ? r.administrada
+            : !r.administrada
+      )
+      .filter((r) =>
+        !s
+          ? true
+          : [r.direccion, r.tipo, r.dueno_id ? duenoNombre[r.dueno_id] : '']
+              .filter(Boolean)
+              .some((v) => String(v).toLowerCase().includes(s))
+      )
+  }, [rows, q, duenoNombre, adminFiltro])
+
+  const countAdmin = useMemo(() => rows.filter((r) => r.administrada).length, [rows])
 
   const openCreate = (): void => {
     setEditing(null)
@@ -89,14 +107,10 @@ export default function Propiedades(): JSX.Element {
     setModalOpen(true)
   }
 
-  const save = async (): Promise<void> => {
-    if (!form.direccion?.trim()) {
-      toast.error('La dirección es obligatoria')
-      return
-    }
+  const persist = async (): Promise<void> => {
     setSaving(true)
     const payload = {
-      direccion: form.direccion.trim(),
+      direccion: form.direccion!.trim(),
       tipo: form.tipo || null,
       dueno_id: form.dueno_id || null,
       estado: (form.estado ?? 'vacia') as EstadoPropiedad,
@@ -106,6 +120,7 @@ export default function Propiedades(): JSX.Element {
         form.porcentaje_comision === null || form.porcentaje_comision === undefined
           ? null
           : Number(form.porcentaje_comision),
+      administrada: form.administrada ?? true,
       notas: form.notas || null
     }
     const { error } = editing
@@ -117,8 +132,30 @@ export default function Propiedades(): JSX.Element {
       return
     }
     toast.success(editing ? 'Propiedad actualizada' : 'Propiedad creada')
+    setConfirmUnmark(null)
     setModalOpen(false)
     void load()
+  }
+
+  const save = async (): Promise<void> => {
+    if (!form.direccion?.trim()) {
+      toast.error('La dirección es obligatoria')
+      return
+    }
+    // Si se está desmarcando "administrada" en una propiedad con contratos activos,
+    // avisar qué implica antes de aplicar.
+    if (editing && editing.administrada && form.administrada === false) {
+      const { count } = await supabase
+        .from('contratos')
+        .select('*', { count: 'exact', head: true })
+        .eq('propiedad_id', editing.id)
+        .eq('estado', 'activo')
+      if ((count ?? 0) > 0) {
+        setConfirmUnmark({ count: count ?? 0 })
+        return
+      }
+    }
+    void persist()
   }
 
   const doDelete = async (): Promise<void> => {
@@ -153,14 +190,37 @@ export default function Propiedades(): JSX.Element {
 
       {!isSupabaseConfigured && <ConfigNotice />}
 
-      <div className="relative mb-4 max-w-sm">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-        <input
-          className="input w-full pl-9"
-          placeholder="Buscar por dirección, tipo o dueño…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="relative flex-1 max-w-sm">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <input
+            className="input w-full pl-9"
+            placeholder="Buscar por dirección, tipo o dueño…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-1 bg-surface border border-border rounded-lg p-0.5">
+          {(
+            [
+              ['todas', 'Todas'],
+              ['admin', 'Administradas'],
+              ['noadmin', 'No administradas']
+            ] as [AdminFiltro, string][]
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setAdminFiltro(id)}
+              className={`px-3 py-1.5 rounded-md text-xs transition-colors ${
+                adminFiltro === id
+                  ? 'bg-accent text-[#04110f] font-medium'
+                  : 'text-ink-2 hover:text-ink'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="card overflow-hidden">
@@ -199,6 +259,13 @@ export default function Propiedades(): JSX.Element {
                     >
                       {d.direccion}
                     </button>
+                    <div className="mt-1">
+                      {d.administrada ? (
+                        <EstadoChip tone="ok">Administrada</EstadoChip>
+                      ) : (
+                        <EstadoChip tone="muted">No administrada</EstadoChip>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-zinc-400">{d.tipo || '—'}</td>
                   <td className="px-4 py-3 text-zinc-400">
@@ -359,6 +426,33 @@ export default function Propiedades(): JSX.Element {
               }
             />
           </Field>
+          {/* Toggle: administrada por LG Prop */}
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, administrada: !(f.administrada ?? true) }))}
+            className="w-full flex items-center justify-between gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left"
+          >
+            <div>
+              <div className="text-sm text-white">Administrada por LG Prop</div>
+              <div className="text-[11px] text-ink-2 mt-0.5">
+                {form.administrada ?? true
+                  ? 'Se cobra comisión, entra en liquidaciones y avisos.'
+                  : 'Solo referencia: sin comisión, sin liquidaciones ni avisos.'}
+              </div>
+            </div>
+            <span
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                form.administrada ?? true ? 'bg-accent' : 'bg-border'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  form.administrada ?? true ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </span>
+          </button>
+
           <Field label="Notas">
             <TextArea
               value={form.notas ?? ''}
@@ -374,6 +468,16 @@ export default function Propiedades(): JSX.Element {
         onConfirm={doDelete}
         onClose={() => setDelTarget(null)}
         loading={deleting}
+      />
+
+      <ConfirmDialog
+        open={!!confirmUnmark}
+        title="Marcar como no administrada"
+        message={`Esta propiedad tiene ${confirmUnmark?.count ?? 0} contrato(s) activo(s). Al marcarla como NO administrada, LG Prop deja de generar comisión y de incluirla en las liquidaciones, y no aparecerá en los avisos. Los contratos y pagos existentes se conservan. ¿Confirmás el cambio?`}
+        confirmLabel="Sí, marcar como no administrada"
+        onConfirm={persist}
+        onClose={() => setConfirmUnmark(null)}
+        loading={saving}
       />
     </div>
   )

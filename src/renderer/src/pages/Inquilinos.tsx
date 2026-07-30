@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Pencil, Trash2, Search } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
-import type { Inquilino } from '@/types/database'
+import type { Inquilino, Contrato } from '@/types/database'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
 import Modal from '@/components/ui/Modal'
@@ -9,6 +9,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { Field, TextInput, TextArea } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
 import TelefonoWhatsApp from '@/components/ui/TelefonoWhatsApp'
+import ContratoMontos from '@/components/ui/ContratoMontos'
 
 type Form = Partial<Inquilino>
 const EMPTY: Form = {
@@ -33,6 +34,9 @@ export default function Inquilinos(): JSX.Element {
   const [saving, setSaving] = useState(false)
   const [delTarget, setDelTarget] = useState<Inquilino | null>(null)
   const [deleting, setDeleting] = useState(false)
+  // Contrato vigente por inquilino (para mostrar valor inicial/actual)
+  const [contratoDeInq, setContratoDeInq] = useState<Record<string, Contrato>>({})
+  const [pendientesSet, setPendientesSet] = useState<Set<string>>(new Set())
 
   const load = async (): Promise<void> => {
     if (!isSupabaseConfigured) {
@@ -40,9 +44,31 @@ export default function Inquilinos(): JSX.Element {
       return
     }
     setLoading(true)
-    const { data, error } = await supabase.from('inquilinos').select('*').order('nombre')
+    const [{ data, error }, { data: ctr }, { data: act }] = await Promise.all([
+      supabase.from('inquilinos').select('*').order('nombre'),
+      supabase.from('contratos').select('*'),
+      supabase
+        .from('actualizaciones_contrato')
+        .select('contrato_id')
+        .eq('confirmado_por_usuario', false)
+    ])
     if (error) toast.error(error.message)
     setRows(data ?? [])
+    // Elegir el contrato "vigente" de cada inquilino: activo primero, si no el más reciente.
+    const mapa: Record<string, Contrato> = {}
+    for (const c of ctr ?? []) {
+      const prev = mapa[c.inquilino_id]
+      if (!prev) {
+        mapa[c.inquilino_id] = c
+        continue
+      }
+      const mejora =
+        (c.estado === 'activo' && prev.estado !== 'activo') ||
+        (c.estado === prev.estado && c.fecha_inicio > prev.fecha_inicio)
+      if (mejora) mapa[c.inquilino_id] = c
+    }
+    setContratoDeInq(mapa)
+    setPendientesSet(new Set((act ?? []).map((a) => a.contrato_id)))
     setLoading(false)
   }
 
@@ -150,19 +176,20 @@ export default function Inquilinos(): JSX.Element {
               <th className="px-4 py-3 font-medium">DNI</th>
               <th className="px-4 py-3 font-medium">Contacto</th>
               <th className="px-4 py-3 font-medium">Garante</th>
+              <th className="px-4 py-3 font-medium text-right">Contrato</th>
               <th className="px-4 py-3 font-medium text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={6} className="px-4 py-10 text-center text-zinc-600">
                   Cargando…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-zinc-600">
+                <td colSpan={6} className="px-4 py-10 text-center text-zinc-600">
                   {rows.length === 0 ? 'Todavía no hay inquilinos cargados.' : 'Sin resultados.'}
                 </td>
               </tr>
@@ -189,6 +216,18 @@ export default function Inquilinos(): JSX.Element {
                       </div>
                     ) : (
                       '—'
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {contratoDeInq[d.id] ? (
+                      <ContratoMontos
+                        inicial={contratoDeInq[d.id].monto_inicial}
+                        actual={contratoDeInq[d.id].monto_actual}
+                        moneda={contratoDeInq[d.id].moneda}
+                        pendiente={pendientesSet.has(contratoDeInq[d.id].id)}
+                      />
+                    ) : (
+                      <span className="text-zinc-600">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3">

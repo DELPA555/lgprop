@@ -33,6 +33,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { Field, TextInput, TextArea, Select } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
 import TelefonoWhatsApp from '@/components/ui/TelefonoWhatsApp'
+import ContratoMontos from '@/components/ui/ContratoMontos'
 import { formatARS, formatDate, formatMoneda } from '@/lib/format'
 import { computeFechaFin, computeProximaActualizacion, daysUntil, todayISO } from '@/lib/dates'
 import GenerarContratoModal from '@/components/ai/GenerarContratoModal'
@@ -112,6 +113,8 @@ export default function Contratos(): JSX.Element {
   const [propiedades, setPropiedades] = useState<Propiedad[]>([])
   const [inquilinos, setInquilinos] = useState<Inquilino[]>([])
   const [duenos, setDuenos] = useState<Dueno[]>([])
+  // Contratos con actualización calculada pero sin confirmar
+  const [pendientesSet, setPendientesSet] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -153,17 +156,22 @@ export default function Contratos(): JSX.Element {
       return
     }
     setLoading(true)
-    const [ctr, prop, inq, dus] = await Promise.all([
+    const [ctr, prop, inq, dus, act] = await Promise.all([
       supabase.from('contratos').select('*').order('fecha_fin'),
       supabase.from('propiedades').select('*').order('direccion'),
       supabase.from('inquilinos').select('*').order('nombre'),
-      supabase.from('duenos').select('*').order('nombre')
+      supabase.from('duenos').select('*').order('nombre'),
+      supabase
+        .from('actualizaciones_contrato')
+        .select('contrato_id')
+        .eq('confirmado_por_usuario', false)
     ])
     if (ctr.error) toast.error(ctr.error.message)
     setRows(ctr.data ?? [])
     setPropiedades(prop.data ?? [])
     setInquilinos(inq.data ?? [])
     setDuenos(dus.data ?? [])
+    setPendientesSet(new Set((act.data ?? []).map((a) => a.contrato_id)))
     setLoading(false)
   }
 
@@ -576,7 +584,7 @@ export default function Contratos(): JSX.Element {
               <th className="px-4 py-3 font-medium">Propiedad</th>
               <th className="px-4 py-3 font-medium">Inquilino</th>
               <th className="px-4 py-3 font-medium">Período</th>
-              <th className="px-4 py-3 font-medium text-right">Monto actual</th>
+              <th className="px-4 py-3 font-medium text-right">Monto</th>
               <th className="px-4 py-3 font-medium">Índice</th>
               <th className="px-4 py-3 font-medium">Próx. ajuste</th>
               <th className="px-4 py-3 font-medium">Estado</th>
@@ -619,13 +627,13 @@ export default function Contratos(): JSX.Element {
                     <td className="px-4 py-3 text-zinc-400 text-xs">
                       {formatDate(c.fecha_inicio)} → {formatDate(c.fecha_fin)}
                     </td>
-                    <td className="px-4 py-3 text-right text-zinc-200 tabular-nums">
-                      {formatMoneda(c.monto_actual, c.moneda)}
-                      {c.moneda === 'USD' && (
-                        <span className="ml-1 text-[9px] font-semibold text-sky-400 align-top">
-                          USD
-                        </span>
-                      )}
+                    <td className="px-4 py-3 text-right">
+                      <ContratoMontos
+                        inicial={c.monto_inicial}
+                        actual={c.monto_actual}
+                        moneda={c.moneda}
+                        pendiente={pendientesSet.has(c.id)}
+                      />
                     </td>
                     <td className="px-4 py-3 text-zinc-400 text-xs">
                       {c.indice_actualizacion === 'Combinado'

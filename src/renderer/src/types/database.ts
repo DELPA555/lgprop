@@ -66,6 +66,7 @@ export type Propiedad = {
   monto_expensas: number
   paga_expensas: PagaExpensas
   porcentaje_comision: number | null // NULL = hereda del dueño
+  administrada: boolean // true = LG Prop la administra (comisión + liquidaciones + avisos)
   notas: string | null
   created_at: string
 }

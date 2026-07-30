@@ -34,6 +34,7 @@ interface Metrics {
   actualizaciones: number
   pagosAtrasados: number
   propiedadesTotal: number
+  propiedadesAdmin: number
   contratosActivos: number
   cobradoMes: number
   porCobrarMes: number
@@ -69,59 +70,34 @@ export default function Dashboard(): JSX.Element {
     let alive = true
     ;(async () => {
       setLoading(true)
-      const count = async (build: () => any): Promise<number> => {
-        try {
-          const { count } = await build()
-          return count ?? 0
-        } catch {
-          return 0
-        }
-      }
       const monthStartISO = `${todayISO().slice(0, 7)}-01`
       const yearStart = `${new Date().getFullYear()}-01-01`
+      const hoy = todayISO()
+      const en60 = addDaysISO(60)
+      const en30 = addDaysISO(30)
 
-      const [
-        vencimientos,
-        actualizaciones,
-        pagosAtrasados,
-        propiedadesTotal,
-        contratosActivos
-      ] = await Promise.all([
-        count(() =>
-          supabase
-            .from('contratos')
-            .select('*', { count: 'exact', head: true })
-            .eq('estado', 'activo')
-            .gte('fecha_fin', todayISO())
-            .lte('fecha_fin', addDaysISO(60))
-        ),
-        count(() =>
-          supabase
-            .from('contratos')
-            .select('*', { count: 'exact', head: true })
-            .eq('estado', 'activo')
-            .not('proxima_actualizacion', 'is', null)
-            .gte('proxima_actualizacion', todayISO())
-            .lte('proxima_actualizacion', addDaysISO(30))
-        ),
-        count(() =>
-          supabase.from('pagos').select('*', { count: 'exact', head: true }).eq('estado', 'atrasado')
-        ),
-        count(() => supabase.from('propiedades').select('*', { count: 'exact', head: true })),
-        count(() =>
-          supabase
-            .from('contratos')
-            .select('*', { count: 'exact', head: true })
-            .eq('estado', 'activo')
-        )
-      ])
-
-      // ── Datos base para etiquetas y moneda ──
-      const [{ data: ctrs }, { data: props }, { data: inqs }] = await Promise.all([
-        supabase.from('contratos').select('id, moneda, propiedad_id, inquilino_id'),
-        supabase.from('propiedades').select('id, direccion'),
+      // ── Datos base: propiedades (con administrada), contratos, inquilinos ──
+      const [{ data: props }, { data: ctrs }, { data: inqs }] = await Promise.all([
+        supabase.from('propiedades').select('id, direccion, administrada'),
+        supabase
+          .from('contratos')
+          .select('id, estado, fecha_fin, proxima_actualizacion, moneda, propiedad_id, inquilino_id'),
         supabase.from('inquilinos').select('id, nombre')
       ])
+
+      const adminSet = new Set<string>()
+      const dirMap: Record<string, string> = {}
+      let propiedadesTotal = 0
+      let propiedadesAdmin = 0
+      for (const p of props ?? []) {
+        propiedadesTotal++
+        dirMap[p.id] = p.direccion
+        if (p.administrada) {
+          adminSet.add(p.id)
+          propiedadesAdmin++
+        }
+      }
+
       const monedaMap: Record<string, Moneda> = {}
       const propDeContrato: Record<string, string> = {}
       const inqDeContrato: Record<string, string> = {}
@@ -130,8 +106,9 @@ export default function Dashboard(): JSX.Element {
         propDeContrato[c.id] = c.propiedad_id
         inqDeContrato[c.id] = c.inquilino_id
       }
-      const dirMap: Record<string, string> = {}
-      for (const p of props ?? []) dirMap[p.id] = p.direccion
+      // ¿El contrato pertenece a una propiedad administrada?
+      const esAdmin = (contratoId: string): boolean => adminSet.has(propDeContrato[contratoId] ?? '')
+
       const nomMap: Record<string, string> = {}
       for (const i of inqs ?? []) nomMap[i.id] = i.nombre
       const etiquetaDe = (contratoId: string): string => {
@@ -140,7 +117,36 @@ export default function Dashboard(): JSX.Element {
         return nom ? `${dir} · ${nom}` : dir
       }
 
-      // ── Pagos del mes en curso (para tabla + cobrado/por cobrar) ──
+      // ── Alertas / KPIs de contratos (solo administradas) ──
+      let vencimientos = 0
+      let actualizaciones = 0
+      let contratosActivos = 0
+      for (const c of ctrs ?? []) {
+        if (!adminSet.has(c.propiedad_id)) continue
+        if (c.estado !== 'activo') continue
+        contratosActivos++
+        if (c.fecha_fin && c.fecha_fin >= hoy && c.fecha_fin <= en60) vencimientos++
+        if (
+          c.proxima_actualizacion &&
+          c.proxima_actualizacion >= hoy &&
+          c.proxima_actualizacion <= en30
+        )
+          actualizaciones++
+      }
+
+      // ── Pagos atrasados (todos los meses, solo administradas) ──
+      let pagosAtrasados = 0
+      try {
+        const { data: atr } = await supabase
+          .from('pagos')
+          .select('contrato_id')
+          .eq('estado', 'atrasado')
+        for (const p of atr ?? []) if (esAdmin(p.contrato_id)) pagosAtrasados++
+      } catch {
+        // sin datos
+      }
+
+      // ── Pagos del mes en curso (tabla + cobrado/por cobrar), solo administradas ──
       let cobradoMes = 0
       let porCobrarMes = 0
       let pagosMes: PagoRow[] = []
@@ -149,13 +155,14 @@ export default function Dashboard(): JSX.Element {
           .from('pagos')
           .select('id, contrato_id, monto, monto_ars, monto_neto, estado, fecha_pago')
           .eq('mes_correspondiente', monthStartISO)
-        for (const p of pagos ?? []) {
+        const pagosAdmin = (pagos ?? []).filter((p) => esAdmin(p.contrato_id))
+        for (const p of pagosAdmin) {
           const pesos = p.monto_ars ?? p.monto
           if (p.estado === 'pagado') cobradoMes += pesos
           else porCobrarMes += pesos
         }
         const orden: Record<EstadoPago, number> = { atrasado: 0, pendiente: 1, pagado: 2 }
-        pagosMes = (pagos ?? [])
+        pagosMes = pagosAdmin
           .map((p) => ({
             ...p,
             moneda: monedaMap[p.contrato_id] ?? 'ARS',
@@ -167,7 +174,7 @@ export default function Dashboard(): JSX.Element {
         // sin datos
       }
 
-      // ── Comisiones cobradas (ARS / USD) ──
+      // ── Comisiones cobradas (ARS / USD), solo administradas ──
       let comisionMes = 0
       let comisionAnio = 0
       let comisionMesUSD = 0
@@ -179,6 +186,7 @@ export default function Dashboard(): JSX.Element {
           .eq('estado', 'pagado')
           .gte('mes_correspondiente', yearStart)
         for (const p of comPagos ?? []) {
+          if (!esAdmin(p.contrato_id)) continue
           const esUSD = monedaMap[p.contrato_id] === 'USD'
           const v = p.monto_comision ?? 0
           const delMes = p.mes_correspondiente === monthStartISO
@@ -200,6 +208,7 @@ export default function Dashboard(): JSX.Element {
         actualizaciones,
         pagosAtrasados,
         propiedadesTotal,
+        propiedadesAdmin,
         contratosActivos,
         cobradoMes,
         porCobrarMes,
@@ -263,8 +272,14 @@ export default function Dashboard(): JSX.Element {
 
   const dash = (v: string | number): string => (loading ? '—' : String(v))
 
+  const noAdmin = (metrics?.propiedadesTotal ?? 0) - (metrics?.propiedadesAdmin ?? 0)
   const tiles = [
-    { label: 'Propiedades', value: metrics?.propiedadesTotal ?? 0, Icon: Building2, hint: 'En cartera' },
+    {
+      label: 'Propiedades administradas',
+      value: metrics?.propiedadesAdmin ?? 0,
+      Icon: Building2,
+      hint: noAdmin > 0 ? `${metrics?.propiedadesTotal ?? 0} cargadas en total` : 'En cartera'
+    },
     { label: 'Contratos activos', value: metrics?.contratosActivos ?? 0, Icon: FileText, hint: 'Vigentes' },
     {
       label: 'Cobrado este mes',
@@ -284,7 +299,14 @@ export default function Dashboard(): JSX.Element {
 
   return (
     <div className="p-6">
-      <PageHeader title="Dashboard" subtitle="Resumen operativo de la administración" />
+      <PageHeader
+        title="Dashboard"
+        subtitle={
+          noAdmin > 0
+            ? `Resumen de la cartera administrada · ${noAdmin} propiedad(es) no administrada(s) excluida(s)`
+            : 'Resumen operativo de la administración'
+        }
+      />
 
       {!isSupabaseConfigured && (
         <div className={`card p-4 mb-5 flex items-start gap-3 ${toneBg.warn}`}>
