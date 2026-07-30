@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Save, Loader2, BellRing, DollarSign } from 'lucide-react'
+import { Save, Loader2, BellRing, DollarSign, Database, Download, RefreshCw } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
@@ -26,6 +26,37 @@ export default function Ajustes(): JSX.Element {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingCotiz, setSavingCotiz] = useState(false)
+  const [backups, setBackups] = useState<{ name: string; size: number | null }[]>([])
+  const [genBackup, setGenBackup] = useState(false)
+
+  const loadBackups = async (): Promise<void> => {
+    const { data } = await supabase.storage
+      .from('backups')
+      .list('', { limit: 20, sortBy: { column: 'name', order: 'desc' } })
+    setBackups(
+      (data ?? [])
+        .filter((f) => f.name.endsWith('.json'))
+        .map((f) => ({ name: f.name, size: (f.metadata?.size as number) ?? null }))
+    )
+  }
+
+  const descargarBackup = async (name: string): Promise<void> => {
+    const { data } = await supabase.storage.from('backups').createSignedUrl(name, 60, {
+      download: name
+    })
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+    else toast.error('No se pudo generar el enlace de descarga')
+  }
+
+  const generarBackup = async (): Promise<void> => {
+    setGenBackup(true)
+    const { data, error } = await supabase.functions.invoke('backup-db', { body: {} })
+    setGenBackup(false)
+    if (error) return void toast.error(error.message)
+    if (!data?.ok) return void toast.error('El backup terminó con errores')
+    toast.success(`Backup generado (${data.tablas} tablas, ${data.filas} filas)`)
+    void loadBackups()
+  }
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -50,6 +81,7 @@ export default function Ajustes(): JSX.Element {
       const latest: Record<string, { tipo: string; venta: number | null; fecha: string }> = {}
       for (const c of cot ?? []) if (!latest[c.tipo]) latest[c.tipo] = c
       setCotizList(Object.values(latest))
+      await loadBackups()
       setLoading(false)
     })()
   }, [])
@@ -195,6 +227,51 @@ export default function Ajustes(): JSX.Element {
             )}
           </div>
         )}
+      </div>
+
+      <div className="card p-5 max-w-xl mt-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+            <Database size={16} className="text-zinc-400" /> Backups de la base
+          </h2>
+          <button
+            onClick={generarBackup}
+            disabled={genBackup}
+            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-border text-zinc-300 hover:text-white hover:bg-white/5"
+          >
+            {genBackup ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            Generar ahora
+          </button>
+        </div>
+        <p className="text-sm text-zinc-400 mt-1.5">
+          Se genera automáticamente cada semana (se conservan los últimos 8). Descargalo y
+          guardalo en tu Google Drive para tener una copia fuera de Supabase.
+        </p>
+        <div className="mt-4 space-y-1">
+          {backups.length === 0 ? (
+            <p className="text-xs text-zinc-600">Todavía no hay backups.</p>
+          ) : (
+            backups.map((b) => (
+              <div key={b.name} className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2 text-zinc-300">
+                  <Database size={13} className="text-zinc-600" />
+                  {b.name}
+                  {b.size != null && (
+                    <span className="text-[10px] text-zinc-600">
+                      {(b.size / 1024).toFixed(0)} KB
+                    </span>
+                  )}
+                </span>
+                <button
+                  onClick={() => descargarBackup(b.name)}
+                  className="flex items-center gap-1 text-xs text-sky-300 hover:text-sky-200"
+                >
+                  <Download size={13} /> Descargar
+                </button>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   )

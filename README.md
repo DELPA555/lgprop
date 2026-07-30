@@ -325,6 +325,27 @@ Migración: `0014_log_actividad.sql` (tabla `log_actividad` + triggers).
   rango de fechas. La tabla `log_actividad` sólo la puede **leer el admin** (RLS); la
   escritura la hacen funciones `SECURITY DEFINER`.
 
+## Backups automáticos
+
+Migraciones: `0015_backups_bucket.sql` + `0016_cron_backup.sql`. Edge Function `backup-db`.
+
+- **Semanal (domingos)**: la Edge Function `backup-db` exporta **todas las tablas** a un
+  JSON y lo sube al bucket privado **`backups`** como `backup-YYYY-MM-DD.json`. Conserva los
+  **últimos 8** (borra los más viejos). Deploy: `supabase functions deploy backup-db`.
+- El bucket es **privado**: solo el **admin** puede listar/descargar (RLS).
+- En **Ajustes → Backups** (solo admin): ver la lista, **Descargar** cada backup, o
+  **Generar ahora** uno on-demand.
+
+### Bajar un backup a Google Drive (manual, 1 vez cada tanto)
+
+1. Entrá a **Ajustes → Backups** y tocá **Descargar** en el backup más reciente (baja el
+   `.json` a tu carpeta de Descargas). *(Alternativa: Supabase → Storage → bucket `backups`.)*
+2. Abrí [drive.google.com](https://drive.google.com), entrá a la carpeta donde guardás las
+   copias de LG Prop y **arrastrá** el archivo ahí (o *Nuevo → Subir archivo*).
+
+No se automatiza la subida a Drive por ahora; con este paso simple queda una copia fuera de
+Supabase. Para restaurar, el JSON tiene todas las tablas con sus filas.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).
