@@ -400,8 +400,21 @@ Migración: `0019_consorcios.sql`.
   guarda en el mismo Storage que los contratos (bucket `contratos-archivos`, prefijo `asambleas/`)
   y se ve con el mismo visor de **pdf.js**.
 
-**Próxima tanda (pendiente)**: 5) Avisos automáticos integrados al cron (liquidación por generar,
-expensas impagas, reclamos sin resolver).
+**Tanda 5 (lista): Avisos automáticos** — migración `0023_avisos_consorcios.sql`.
+
+Integrados al motor diario `enviar-avisos` (mismo cron/email digest que alquileres):
+
+- **Liquidación de expensas sin generar**: pasado el *día de corte* del mes, si falta la
+  liquidación del mes anterior de un consorcio con unidades.
+- **Expensa de unidad impaga**: expensas de meses ya vencidos con estado distinto de *pagado*.
+- **Reclamo sin resolver** hace más de *N* días.
+
+Configurables en **Ajustes → Consorcios · avisos** (día de corte, días de reclamo). Los avisos
+solo cuentan propiedades/consorcios reales y se deduplican como el resto (no repiten el mismo
+aviso por 25 días).
+
+**Módulo Consorcios COMPLETO** (tandas 1–5). Falta solo tu prueba end-to-end y, más adelante, los
+refinamientos que surjan del uso real.
 
 ## Roles
 

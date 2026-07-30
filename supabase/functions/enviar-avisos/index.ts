@@ -36,6 +36,9 @@ type Tipo =
   | 'expensas_pendientes'
   | 'deposito_pendiente'
   | 'seguro_por_vencer'
+  | 'expensas_liquidacion_pendiente'
+  | 'expensa_impaga'
+  | 'reclamo_sin_resolver'
 
 interface NuevaNotif {
   tipo: Tipo
@@ -47,7 +50,11 @@ interface NuevaNotif {
 
 // Clave de deduplicación: usa el contrato o, si no hay (ej. seguros), el id en metadata.
 function dedupeKey(n: { tipo: string; contrato_id: string | null; metadata?: Record<string, unknown> | null }): string {
-  const ref = n.contrato_id ?? (n.metadata?.seguro_id as string | undefined) ?? ''
+  const ref =
+    n.contrato_id ??
+    (n.metadata?.seguro_id as string | undefined) ??
+    (n.metadata?.ref as string | undefined) ??
+    ''
   return `${n.tipo}|${ref}`
 }
 
@@ -90,6 +97,15 @@ Deno.serve(async () => {
     const n = parseInt(data?.valor ?? '', 10)
     if (Number.isFinite(n) && n > 0) diasAnticipacion = n
   }
+
+  // Config del módulo Consorcios
+  const cfgInt = async (clave: string, def: number): Promise<number> => {
+    const { data } = await supabase.from('configuracion').select('valor').eq('clave', clave).maybeSingle()
+    const n = parseInt(data?.valor ?? '', 10)
+    return Number.isFinite(n) && n > 0 ? n : def
+  }
+  const corteLiquidacionDia = await cfgInt('consorcios_corte_liquidacion_dia', 10)
+  const reclamoDiasAlerta = await cfgInt('consorcios_reclamo_dias_alerta', 15)
 
   // Nota: solo se avisa por propiedades ADMINISTRADAS por LG Prop. Las cargadas
   // como referencia (administrada = false) no generan avisos de ningún tipo.
@@ -220,6 +236,90 @@ Deno.serve(async () => {
     }
   }
 
+  // ── Consorcios ────────────────────────────────────────────────────────────
+
+  // 7) Liquidación del mes anterior sin generar (pasado el día de corte)
+  {
+    const hoyDate = new Date(HOY + 'T00:00:00Z')
+    if (hoyDate.getUTCDate() >= corteLiquidacionDia) {
+      const prev = new Date(Date.UTC(hoyDate.getUTCFullYear(), hoyDate.getUTCMonth() - 1, 1))
+      const mesAnterior = prev.toISOString().slice(0, 10)
+      const mesLabel = `${String(prev.getUTCMonth() + 1).padStart(2, '0')}/${prev.getUTCFullYear()}`
+      const { data: cons } = await supabase.from('consorcios').select('id, nombre')
+      for (const c of cons ?? []) {
+        const { count: uni } = await supabase
+          .from('unidades_funcionales')
+          .select('*', { count: 'exact', head: true })
+          .eq('consorcio_id', c.id)
+        if (!uni || uni === 0) continue
+        const { count: liq } = await supabase
+          .from('liquidaciones_expensas')
+          .select('*', { count: 'exact', head: true })
+          .eq('consorcio_id', c.id)
+          .eq('mes', mesAnterior)
+        if (liq && liq > 0) continue
+        pendientes.push({
+          tipo: 'expensas_liquidacion_pendiente',
+          contrato_id: null,
+          metadata: { ref: `liq|${c.id}|${mesAnterior}` },
+          titulo: `Falta generar expensas — ${c.nombre}`,
+          mensaje: `Todavía no se generó la liquidación de expensas de ${mesLabel} para ${c.nombre}. Generala en Consorcios → detalle → Liquidación de expensas.`
+        })
+      }
+    }
+  }
+
+  // 8) Expensas de una unidad sin pagar, de meses ya vencidos
+  {
+    const monthStart = HOY.slice(0, 7) + '-01'
+    const { data: liqs } = await supabase
+      .from('liquidaciones_expensas')
+      .select('id, mes, consorcios(nombre)')
+      .lt('mes', monthStart)
+    const liqMap = new Map((liqs ?? []).map((l) => [l.id, l]))
+    const ids = (liqs ?? []).map((l) => l.id)
+    if (ids.length > 0) {
+      const { data: exps } = await supabase
+        .from('expensas_por_unidad')
+        .select('id, liquidacion_id, identificador, monto_a_pagar, estado')
+        .in('liquidacion_id', ids)
+        .neq('estado', 'pagado')
+      for (const e of exps ?? []) {
+        const l = liqMap.get(e.liquidacion_id) as any
+        const nombre = l?.consorcios?.nombre ?? 'el consorcio'
+        const mesL = String(l?.mes ?? '').slice(0, 7)
+        const monto = Number(e.monto_a_pagar || 0).toLocaleString('es-AR')
+        pendientes.push({
+          tipo: 'expensa_impaga',
+          contrato_id: null,
+          metadata: { ref: `exp|${e.id}` },
+          titulo: `Expensa impaga — ${nombre} (${e.identificador ?? 'unidad'})`,
+          mensaje: `La unidad ${e.identificador ?? ''} de ${nombre} tiene la expensa de ${mesL} sin pagar ($${monto}). Verificá el cobro.`
+        })
+      }
+    }
+  }
+
+  // 9) Reclamos de consorcio sin resolver hace más de N días
+  {
+    const limite = enDias(-reclamoDiasAlerta)
+    const { data } = await supabase
+      .from('reclamos_consorcio')
+      .select('id, descripcion, fecha_reporte, consorcios(nombre)')
+      .neq('estado', 'resuelto')
+      .lte('fecha_reporte', limite)
+    for (const r of data ?? []) {
+      const nombre = (r as any)?.consorcios?.nombre ?? 'un consorcio'
+      pendientes.push({
+        tipo: 'reclamo_sin_resolver',
+        contrato_id: null,
+        metadata: { ref: `rec|${r.id}` },
+        titulo: `Reclamo sin resolver — ${nombre}`,
+        mensaje: `Hay un reclamo abierto desde el ${r.fecha_reporte} en ${nombre}: "${String(r.descripcion).slice(0, 120)}". Pasaron más de ${reclamoDiasAlerta} días.`
+      })
+    }
+  }
+
   // Dedup contra notificaciones recientes sin leer
   const { data: recientes } = await supabase
     .from('notificaciones')
@@ -246,7 +346,10 @@ Deno.serve(async () => {
       pago_atrasado: [],
       expensas_pendientes: [],
       deposito_pendiente: [],
-      seguro_por_vencer: []
+      seguro_por_vencer: [],
+      expensas_liquidacion_pendiente: [],
+      expensa_impaga: [],
+      reclamo_sin_resolver: []
     }
     for (const n of aInsertar) grupos[n.tipo].push(n)
 
@@ -256,7 +359,10 @@ Deno.serve(async () => {
       pago_atrasado: 'Pagos por registrar',
       expensas_pendientes: 'Expensas por conciliar',
       deposito_pendiente: 'Depósitos por devolver',
-      seguro_por_vencer: 'Seguros / ART por vencer'
+      seguro_por_vencer: 'Seguros / ART por vencer',
+      expensas_liquidacion_pendiente: 'Consorcios · liquidaciones por generar',
+      expensa_impaga: 'Consorcios · expensas impagas',
+      reclamo_sin_resolver: 'Consorcios · reclamos sin resolver'
     }
 
     const secciones = (Object.keys(grupos) as Tipo[])

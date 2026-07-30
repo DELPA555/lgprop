@@ -31,6 +31,9 @@ export type TipoNotificacion =
   | 'expensas_pendientes'
   | 'deposito_pendiente'
   | 'seguro_por_vencer'
+  | 'expensas_liquidacion_pendiente'
+  | 'expensa_impaga'
+  | 'reclamo_sin_resolver'
 
 export type Dueno = {
   id: string
