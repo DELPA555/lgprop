@@ -11,7 +11,9 @@ import {
   UserPlus,
   Home,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  Paperclip,
+  FileText
 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type {
@@ -32,7 +34,14 @@ import { useToast } from '@/components/ui/Toast'
 import { formatARS, formatDate } from '@/lib/format'
 import { computeFechaFin, computeProximaActualizacion, daysUntil, todayISO } from '@/lib/dates'
 import GenerarContratoModal from '@/components/ai/GenerarContratoModal'
+import ArchivoPreviewModal from '@/components/ArchivoPreviewModal'
 import { edgeErrorMessage } from '@/lib/edgeError'
+import {
+  subirArchivo,
+  listarArchivosPorContratos,
+  borrarArchivo
+} from '@/lib/contratoArchivos'
+import type { ContratoArchivo } from '@/types/database'
 
 type Form = Partial<Contrato>
 
@@ -112,6 +121,11 @@ export default function Contratos(): JSX.Element {
   const [extracting, setExtracting] = useState(false)
   const [extraido, setExtraido] = useState<Extraido | null>(null)
   const [generarOpen, setGenerarOpen] = useState(false)
+  // Archivos del contrato
+  const archivoInputRef = useRef<HTMLInputElement>(null)
+  const [archivosNuevos, setArchivosNuevos] = useState<File[]>([])
+  const [archivosExistentes, setArchivosExistentes] = useState<ContratoArchivo[]>([])
+  const [previewArchivo, setPreviewArchivo] = useState<ContratoArchivo | null>(null)
 
   const propMap = useMemo(() => {
     const m: Record<string, Propiedad> = {}
@@ -237,7 +251,7 @@ export default function Contratos(): JSX.Element {
       })
       if (error) return void toast.error(await edgeErrorMessage(error, 'No se pudieron extraer los datos'))
       if (!data?.ok) return void toast.error(data?.error ?? 'No se pudieron extraer los datos')
-      applyExtraction(data.datos as Extraido)
+      applyExtraction(data.datos as Extraido, f)
     } catch (err) {
       toast.error((err as Error).message)
     } finally {
@@ -245,7 +259,7 @@ export default function Contratos(): JSX.Element {
     }
   }
 
-  const applyExtraction = (d: Extraido): void => {
+  const applyExtraction = (d: Extraido, file?: File): void => {
     const norm = (s?: string | null): string => (s ?? '').trim().toLowerCase()
     const inq = inquilinos.find(
       (i) =>
@@ -279,6 +293,9 @@ export default function Contratos(): JSX.Element {
       estado: 'activo'
     })
     setExtraido(d)
+    // Reutilizar el mismo archivo que subió para la IA (no pedirlo dos veces)
+    setArchivosNuevos(file ? [file] : [])
+    setArchivosExistentes([])
     setModalOpen(true)
     toast.success('Datos extraídos. Revisalos y completá lo que falte.')
   }
@@ -364,6 +381,8 @@ export default function Contratos(): JSX.Element {
   const openCreate = (): void => {
     setEditing(null)
     setExtraido(null)
+    setArchivosNuevos([])
+    setArchivosExistentes([])
     setForm({ ...EMPTY, fecha_inicio: todayISO() })
     // pre-cálculo de derivados
     setTimeout(
@@ -384,8 +403,24 @@ export default function Contratos(): JSX.Element {
   const openEdit = (c: Contrato): void => {
     setEditing(c)
     setExtraido(null)
+    setArchivosNuevos([])
+    setArchivosExistentes([])
     setForm({ ...c })
     setModalOpen(true)
+    void listarArchivosPorContratos([c.id]).then((m) => setArchivosExistentes(m[c.id] ?? []))
+  }
+
+  const onArchivoInput = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (files.length) setArchivosNuevos((prev) => [...prev, ...files])
+  }
+
+  const borrarExistente = async (a: ContratoArchivo): Promise<void> => {
+    const { error } = await borrarArchivo(a)
+    if (error) return void toast.error(error)
+    setArchivosExistentes((prev) => prev.filter((x) => x.id !== a.id))
+    toast.success('Archivo eliminado')
   }
 
   const save = async (): Promise<void> => {
@@ -431,11 +466,35 @@ export default function Contratos(): JSX.Element {
       motivo_finalizacion: form.estado !== 'activo' ? form.motivo_finalizacion || null : null,
       notas: form.notas || null
     }
-    const { error } = editing
-      ? await supabase.from('contratos').update(payload).eq('id', editing.id)
-      : await supabase.from('contratos').insert(payload)
+    let contratoId = editing?.id
+    if (editing) {
+      const { error } = await supabase.from('contratos').update(payload).eq('id', editing.id)
+      if (error) {
+        setSaving(false)
+        return void toast.error(error.message)
+      }
+    } else {
+      const { data, error } = await supabase
+        .from('contratos')
+        .insert(payload)
+        .select('id')
+        .single()
+      if (error || !data) {
+        setSaving(false)
+        return void toast.error(error?.message ?? 'No se pudo crear el contrato')
+      }
+      contratoId = data.id
+    }
+
+    // Subir los archivos adjuntos nuevos
+    if (contratoId && archivosNuevos.length > 0) {
+      for (const f of archivosNuevos) {
+        const { error } = await subirArchivo(contratoId, f)
+        if (error) toast.error(`No se pudo subir "${f.name}": ${error}`)
+      }
+    }
+
     setSaving(false)
-    if (error) return void toast.error(error.message)
     toast.success(editing ? 'Contrato actualizado' : 'Contrato creado')
     setModalOpen(false)
     void load()
@@ -1009,6 +1068,70 @@ export default function Contratos(): JSX.Element {
               onChange={(e) => patch({ notas: e.target.value })}
             />
           </Field>
+
+          {/* Archivos del contrato (PDF, foto, escaneo) */}
+          <div className="pt-2 border-t border-border">
+            <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Paperclip size={13} /> Archivos del contrato
+            </p>
+            <div className="space-y-1">
+              {archivosExistentes.map((a) => (
+                <div key={a.id} className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewArchivo(a)}
+                    className="flex items-center gap-2 text-sm text-sky-300 hover:text-sky-200 min-w-0"
+                  >
+                    <FileText size={14} className="shrink-0" />
+                    <span className="truncate">{a.nombre}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => borrarExistente(a)}
+                    className="p-1 rounded text-zinc-500 hover:text-red-400 shrink-0"
+                    title="Eliminar"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              {archivosNuevos.map((f, i) => (
+                <div key={i} className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-sm text-zinc-300 min-w-0">
+                    <FileText size={14} className="shrink-0" />
+                    <span className="truncate">{f.name}</span>
+                    <span className="text-[10px] text-emerald-400 shrink-0">nuevo</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setArchivosNuevos((prev) => prev.filter((_, j) => j !== i))}
+                    className="p-1 rounded text-zinc-500 hover:text-red-400 shrink-0"
+                    title="Quitar"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              {archivosExistentes.length === 0 && archivosNuevos.length === 0 && (
+                <p className="text-xs text-zinc-600">Sin archivos adjuntos.</p>
+              )}
+            </div>
+            <input
+              ref={archivoInputRef}
+              type="file"
+              accept="application/pdf,image/png,image/jpeg,image/webp"
+              multiple
+              className="hidden"
+              onChange={onArchivoInput}
+            />
+            <button
+              type="button"
+              onClick={() => archivoInputRef.current?.click()}
+              className="mt-2 flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-border text-zinc-300 hover:text-white hover:bg-white/5"
+            >
+              <Upload size={14} /> Adjuntar archivo
+            </button>
+          </div>
         </div>
       </Modal>
 
@@ -1026,6 +1149,12 @@ export default function Contratos(): JSX.Element {
         propiedades={propiedades}
         inquilinos={inquilinos}
         duenos={duenos}
+      />
+
+      <ArchivoPreviewModal
+        open={!!previewArchivo}
+        archivo={previewArchivo}
+        onClose={() => setPreviewArchivo(null)}
       />
     </div>
   )

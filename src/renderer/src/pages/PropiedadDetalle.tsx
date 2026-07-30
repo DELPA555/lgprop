@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Pencil, Trash2, Wrench, Loader2, ShieldCheck, Users } from 'lucide-react'
+import {
+  ArrowLeft,
+  Plus,
+  Pencil,
+  Trash2,
+  Wrench,
+  Loader2,
+  ShieldCheck,
+  Users,
+  FileText
+} from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type {
   Propiedad,
@@ -10,8 +20,11 @@ import type {
   SeguroPropiedad,
   Contrato,
   Inquilino,
-  EstadoContrato
+  EstadoContrato,
+  ContratoArchivo
 } from '@/types/database'
+import { listarArchivosPorContratos } from '@/lib/contratoArchivos'
+import ArchivoPreviewModal from '@/components/ArchivoPreviewModal'
 import ConfigNotice from '@/components/ConfigNotice'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { useToast } from '@/components/ui/Toast'
@@ -36,6 +49,10 @@ export default function PropiedadDetalle(): JSX.Element {
   const [seguros, setSeguros] = useState<SeguroPropiedad[]>([])
   const [contratos, setContratos] = useState<Contrato[]>([])
   const [inqMap, setInqMap] = useState<Record<string, string>>({})
+  const [archivosPorContrato, setArchivosPorContrato] = useState<
+    Record<string, ContratoArchivo[]>
+  >({})
+  const [previewArchivo, setPreviewArchivo] = useState<ContratoArchivo | null>(null)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Mantenimiento | null>(null)
@@ -89,6 +106,9 @@ export default function PropiedadDetalle(): JSX.Element {
     } else {
       setInqMap({})
     }
+    setArchivosPorContrato(
+      await listarArchivosPorContratos((ctr ?? []).map((c) => c.id))
+    )
     setLoading(false)
   }
 
@@ -210,12 +230,13 @@ export default function PropiedadDetalle(): JSX.Element {
                   <th className="px-4 py-3 font-medium text-right">Monto</th>
                   <th className="px-4 py-3 font-medium">Estado</th>
                   <th className="px-4 py-3 font-medium">Motivo de finalización</th>
+                  <th className="px-4 py-3 font-medium">Archivo</th>
                 </tr>
               </thead>
               <tbody>
                 {contratos.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-zinc-600">
+                    <td colSpan={6} className="px-4 py-10 text-center text-zinc-600">
                       Sin contratos cargados para esta propiedad.
                     </td>
                   </tr>
@@ -243,6 +264,25 @@ export default function PropiedadDetalle(): JSX.Element {
                       </td>
                       <td className="px-4 py-3 text-zinc-400 text-xs">
                         {c.motivo_finalizacion || '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {(archivosPorContrato[c.id] ?? []).length === 0 ? (
+                          <span className="text-zinc-600 text-xs">—</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {(archivosPorContrato[c.id] ?? []).map((a) => (
+                              <button
+                                key={a.id}
+                                onClick={() => setPreviewArchivo(a)}
+                                title={a.nombre}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-sky-500/30 text-sky-300 hover:bg-sky-500/10 text-xs max-w-[160px]"
+                              >
+                                <FileText size={12} className="shrink-0" />
+                                <span className="truncate">{a.nombre}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -464,6 +504,12 @@ export default function PropiedadDetalle(): JSX.Element {
         propiedades={[]}
         fixedPropiedadId={id}
         onSaved={load}
+      />
+
+      <ArchivoPreviewModal
+        open={!!previewArchivo}
+        archivo={previewArchivo}
+        onClose={() => setPreviewArchivo(null)}
       />
 
       <ConfirmDialog

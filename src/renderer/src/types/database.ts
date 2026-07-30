@@ -186,6 +186,17 @@ export type Configuracion = {
   updated_at: string
 }
 
+export type ContratoArchivo = {
+  id: string
+  contrato_id: string
+  nombre: string
+  path: string
+  tipo: string | null
+  tamano: number | null
+  subido_por: string | null
+  created_at: string
+}
+
 export type UsuarioEquipo = {
   id: string
   auth_user_id: string
@@ -230,6 +241,7 @@ export type Database = {
       usuarios_equipo: TableDef<UsuarioEquipo>
       notificaciones: TableDef<Notificacion>
       contratos_generados: TableDef<ContratoGenerado>
+      contratos_archivos: TableDef<ContratoArchivo>
       liquidaciones: TableDef<Liquidacion>
       mantenimiento: TableDef<Mantenimiento>
       seguros_propiedad: TableDef<SeguroPropiedad>

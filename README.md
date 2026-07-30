@@ -280,6 +280,21 @@ válida entra directo; si expiró, muestra el login.
 
 No se guarda la contraseña en ningún archivo ni base local.
 
+## Archivos de contratos (Supabase Storage)
+
+Migración: `supabase/migrations/0011_contratos_archivos.sql` (bucket **privado**
+`contratos-archivos` con policies solo para miembros activos, y tabla
+`contratos_archivos` — múltiples archivos por contrato).
+
+- En el **modal de Contratos** hay una sección *Archivos del contrato* para adjuntar PDF/
+  imágenes. Al usar **“Cargar contrato existente”**, el archivo que se subió para que la IA
+  lo lea se **reutiliza** automáticamente (no se pide dos veces). Los archivos se suben al
+  guardar el contrato.
+- En el **detalle de propiedad**, la tabla de contratos muestra los archivos; al hacer clic
+  se abre una **vista previa in-app** (imagen o PDF embebido) con botón **Descargar**.
+- El bucket es **privado**: los archivos se acceden con **URLs firmadas** temporales; sin
+  autenticación no se pueden ver ni descargar (`lib/contratoArchivos.ts`).
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).
