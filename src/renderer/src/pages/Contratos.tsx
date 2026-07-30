@@ -32,6 +32,7 @@ import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { Field, TextInput, TextArea, Select } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
+import TelefonoWhatsApp from '@/components/ui/TelefonoWhatsApp'
 import { formatARS, formatDate, formatMoneda } from '@/lib/format'
 import { computeFechaFin, computeProximaActualizacion, daysUntil, todayISO } from '@/lib/dates'
 import GenerarContratoModal from '@/components/ai/GenerarContratoModal'
@@ -604,7 +605,17 @@ export default function Contratos(): JSX.Element {
                     <td className="px-4 py-3 text-white font-medium">
                       {propMap[c.propiedad_id]?.direccion ?? '—'}
                     </td>
-                    <td className="px-4 py-3 text-zinc-400">{inqMap[c.inquilino_id] ?? '—'}</td>
+                    <td className="px-4 py-3 text-zinc-400">
+                      <span className="inline-flex items-center gap-1.5">
+                        {inqMap[c.inquilino_id] ?? '—'}
+                        {(() => {
+                          const inq = inquilinos.find((i) => i.id === c.inquilino_id)
+                          return inq?.telefono ? (
+                            <TelefonoWhatsApp numero={inq.telefono} iconOnly size={14} />
+                          ) : null
+                        })()}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-zinc-400 text-xs">
                       {formatDate(c.fecha_inicio)} → {formatDate(c.fecha_fin)}
                     </td>

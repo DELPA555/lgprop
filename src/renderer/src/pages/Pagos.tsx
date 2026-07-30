@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/Toast'
 import { formatARS, formatDate, formatMoneda } from '@/lib/format'
 import { todayISO } from '@/lib/dates'
 import ExportarContableButton from '@/components/ExportarContableButton'
+import TelefonoWhatsApp, { msgPago } from '@/components/ui/TelefonoWhatsApp'
 import type { Moneda } from '@/types/database'
 
 const currentYM = (): string => todayISO().slice(0, 7)
@@ -307,7 +308,24 @@ export default function Pagos(): JSX.Element {
             ) : (
               filtered.map((p) => (
                 <tr key={p.id} className="border-b border-border/60 hover:bg-white/[0.02]">
-                  <td className="px-4 py-2.5 text-ink">{contratoLabel(p.contrato_id)}</td>
+                  <td className="px-4 py-2.5 text-ink">
+                    <span className="inline-flex items-center gap-1.5">
+                      {contratoLabel(p.contrato_id)}
+                      {(() => {
+                        const c = contratoMap[p.contrato_id]
+                        const inq = c ? inquilinos.find((i) => i.id === c.inquilino_id) : null
+                        if (!inq?.telefono) return null
+                        const dir = c ? (propMap[c.propiedad_id] ?? 'la propiedad') : 'la propiedad'
+                        const mensaje =
+                          p.estado === 'pendiente' || p.estado === 'atrasado'
+                            ? msgPago(inq.nombre, p.mes_correspondiente, dir)
+                            : undefined
+                        return (
+                          <TelefonoWhatsApp numero={inq.telefono} mensaje={mensaje} iconOnly size={14} />
+                        )
+                      })()}
+                    </span>
+                  </td>
                   <td className="px-4 py-2.5 text-right text-ink-2 num">
                     {formatMoneda(p.monto, monedaDe(p.contrato_id))}
                     {monedaDe(p.contrato_id) === 'USD' && (
