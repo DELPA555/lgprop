@@ -18,6 +18,8 @@ import { useToast } from '@/components/ui/Toast'
 import { formatDate } from '@/lib/format'
 import ProveedoresSection from '@/components/consorcios/ProveedoresSection'
 import GastosSection from '@/components/consorcios/GastosSection'
+import LiquidacionExpensasSection from '@/components/consorcios/LiquidacionExpensasSection'
+import FondoReservaSection from '@/components/consorcios/FondoReservaSection'
 
 const NUEVO = '__new__'
 
@@ -337,6 +339,10 @@ export default function ConsorcioDetalle(): JSX.Element {
           {/* Tanda 2: gastos + proveedores del edificio */}
           <GastosSection consorcioId={id} />
           <ProveedoresSection consorcioId={id} />
+
+          {/* Tanda 3: liquidación de expensas + fondo de reserva */}
+          <LiquidacionExpensasSection consorcio={cons} />
+          <FondoReservaSection consorcioId={id} />
         </>
       )}
 

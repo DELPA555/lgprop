@@ -376,8 +376,22 @@ Migración: `0019_consorcios.sql`.
 - Ambos se administran como **secciones dentro del detalle del consorcio**
   (`/consorcios/:id`), con selector de mes y total del mes en Gastos.
 
-**Próximas tandas (pendientes)**: 3) Liquidación de expensas + Fondo de reserva ·
-4) Reclamos + Asambleas · 5) Avisos automáticos integrados al cron.
+**Tanda 3 (lista): Liquidación de expensas + Fondo de reserva** — migración
+`0021_liquidacion_expensas.sql`.
+
+- **`liquidaciones_expensas`**: una por consorcio/mes (única). Guarda total de gastos, fondo de
+  reserva del mes y base a repartir.
+- **`expensas_por_unidad`**: lo que le toca a cada unidad = base × (% fiscal). Estado
+  pendiente/pagado/atrasado + fecha de pago.
+- **`fondo_reserva`**: movimientos (aporte +, egreso −) con **saldo acumulado**. Al generar una
+  liquidación con fondo del mes, se suma automáticamente un aporte.
+- **Botón “Generar liquidación del mes”**: toma los gastos del mes + el fondo ingresado, reparte
+  por % fiscal entre las unidades, y deja cada expensa lista para marcar como pagada. Avisa si los
+  % no suman 100%. Se puede eliminar para regenerar.
+- **PDF por unidad** (`lib/expensasPdf.ts`): resumen para enviarle al propietario, con el detalle
+  de gastos, el fondo, la base y su parte a pagar.
+
+**Próximas tandas (pendientes)**: 4) Reclamos + Asambleas · 5) Avisos automáticos integrados al cron.
 
 ## Roles
 

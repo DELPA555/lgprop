@@ -296,6 +296,42 @@ export type GastoEdificio = {
   created_at: string
 }
 
+export type LiquidacionExpensas = {
+  id: string
+  consorcio_id: string
+  mes: string
+  total_gastos: number
+  monto_fondo_reserva_del_mes: number
+  base_a_repartir: number
+  fecha_generacion: string
+  generada_por: string | null
+  notas: string | null
+  created_at: string
+}
+
+export type ExpensaPorUnidad = {
+  id: string
+  liquidacion_id: string
+  unidad_id: string | null
+  identificador: string | null
+  porcentaje_aplicado: number
+  monto_a_pagar: number
+  estado: EstadoPago
+  fecha_pago: string | null
+  created_at: string
+}
+
+export type MovimientoFondoReserva = {
+  id: string
+  consorcio_id: string
+  fecha: string
+  mes: string | null
+  concepto: string
+  monto: number
+  liquidacion_id: string | null
+  created_at: string
+}
+
 export type Notificacion = {
   id: string
   tipo: TipoNotificacion
@@ -342,6 +378,9 @@ export type Database = {
       unidades_funcionales: TableDef<UnidadFuncional>
       proveedores_edificio: TableDef<ProveedorEdificio>
       gastos_edificio: TableDef<GastoEdificio>
+      liquidaciones_expensas: TableDef<LiquidacionExpensas>
+      expensas_por_unidad: TableDef<ExpensaPorUnidad>
+      fondo_reserva: TableDef<MovimientoFondoReserva>
     }
     Views: Record<string, never>
     Functions: Record<string, never>
