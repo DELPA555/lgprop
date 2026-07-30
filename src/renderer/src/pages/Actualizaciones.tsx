@@ -12,6 +12,7 @@ import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
 import { useToast } from '@/components/ui/Toast'
 import { formatARS, formatDate } from '@/lib/format'
+import TelefonoWhatsApp, { msgActualizacion } from '@/components/ui/TelefonoWhatsApp'
 import { addMonthsISO, todayISO } from '@/lib/dates'
 import { calcularActualizacion } from '@/lib/actualizaciones'
 
@@ -254,9 +255,24 @@ export default function Actualizaciones(): JSX.Element {
               <div key={a.id} className="card p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="text-sm text-white font-medium truncate">
-                      {contratoLabel(a.contrato_id)}
-                    </p>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className="text-sm text-white font-medium truncate">
+                        {contratoLabel(a.contrato_id)}
+                      </p>
+                      {(() => {
+                        const inq = c ? inquilinos.find((i) => i.id === c.inquilino_id) : null
+                        if (!inq?.telefono) return null
+                        const dir = c ? (propMap[c.propiedad_id] ?? 'la propiedad') : 'la propiedad'
+                        return (
+                          <TelefonoWhatsApp
+                            numero={inq.telefono}
+                            mensaje={msgActualizacion(inq.nombre, dir, a.fecha_calculo)}
+                            iconOnly
+                            size={14}
+                          />
+                        )
+                      })()}
+                    </div>
                     <p className="text-xs text-zinc-500 mt-0.5">
                       {a.indice_usado}
                       {a.coeficiente != null && ` · coef. ${a.coeficiente.toFixed(4)}`} · vence{' '}

@@ -8,6 +8,7 @@ import Modal from '@/components/ui/Modal'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
 import { Field, TextInput, TextArea } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
+import TelefonoWhatsApp from '@/components/ui/TelefonoWhatsApp'
 
 type Form = Partial<Dueno>
 const EMPTY: Form = {
@@ -175,7 +176,7 @@ export default function Duenos(): JSX.Element {
                 <tr key={d.id} className="border-b border-border/60 hover:bg-white/[0.02]">
                   <td className="px-4 py-3 text-white font-medium">{d.nombre}</td>
                   <td className="px-4 py-3 text-zinc-400">
-                    <div>{d.telefono || '—'}</div>
+                    <TelefonoWhatsApp numero={d.telefono} />
                     <div className="text-xs text-zinc-600">{d.email || ''}</div>
                   </td>
                   <td className="px-4 py-3 text-zinc-400">
