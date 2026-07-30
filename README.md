@@ -265,6 +265,21 @@ lectura para miembros activos, escritura solo admin; seed
   y de seguros. **Redeployar** tras la migración: `supabase functions deploy enviar-avisos`.
   *(La tarjeta “Vencen en 60 días” del Dashboard es un indicador visual fijo.)*
 
+## Inicio de sesión persistente ("recordarme")
+
+La app persiste **solo el token de sesión** de Supabase (nunca la contraseña), cifrado con
+`safeStorage` (DPAPI en Windows) en un archivo del `userData` — vía el proceso principal
+(`src/main/sessionStore.ts`), no en `localStorage`. Al abrir la app, si hay una sesión
+válida entra directo; si expiró, muestra el login.
+
+- Checkbox **“Mantener sesión iniciada”** en el login (marcado por defecto). Si se desmarca,
+  la sesión queda solo en memoria (no se escribe a disco) — pensado para PC compartida.
+- **Cerrar sesión**: botón en el pie del sidebar (borra la sesión guardada y vuelve al login).
+- Se recuerda además el **último email** (dato no sensible, en texto plano) para precargar
+  el campo — solo si “Mantener sesión iniciada” está tildado.
+
+No se guarda la contraseña en ningún archivo ni base local.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).

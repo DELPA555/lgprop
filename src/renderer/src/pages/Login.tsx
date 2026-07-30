@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LogIn, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
@@ -6,16 +6,31 @@ export default function Login(): JSX.Element {
   const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [recordarme, setRecordarme] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Precargar el último email usado (no la contraseña)
+  useEffect(() => {
+    window.lgprop?.prefs?.getEmail().then((mail) => {
+      if (mail) setEmail(mail)
+    })
+  }, [])
 
   const submit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     setError(null)
     setLoading(true)
+    // Definir ANTES del login si la sesión se persiste a disco o no
+    await window.lgprop?.session?.setPersist(recordarme)
     const { error } = await signIn(email.trim(), password)
     setLoading(false)
-    if (error) setError('No pudimos iniciar sesión. Revisá el email y la contraseña.')
+    if (error) {
+      setError('No pudimos iniciar sesión. Revisá el email y la contraseña.')
+      return
+    }
+    // Recordar el email solo si el usuario quiere mantener la sesión
+    await window.lgprop?.prefs?.setEmail(recordarme ? email.trim() : '')
   }
 
   return (
@@ -50,6 +65,15 @@ export default function Login(): JSX.Element {
               required
             />
           </div>
+          <label className="flex items-center gap-2 text-sm text-zinc-300 select-none cursor-pointer">
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-emerald-500"
+              checked={recordarme}
+              onChange={(e) => setRecordarme(e.target.checked)}
+            />
+            Mantener sesión iniciada
+          </label>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <button
             type="submit"
@@ -61,7 +85,7 @@ export default function Login(): JSX.Element {
           </button>
         </form>
         <p className="text-center text-[11px] text-zinc-600 mt-4">
-          ¿No tenés acceso? Pedile al administrador que te dé de alta en el equipo.
+          En una PC compartida, desmarcá “Mantener sesión iniciada”.
         </p>
       </div>
     </div>
