@@ -13,6 +13,7 @@ import {
   Wrench,
   ShieldCheck,
   Settings,
+  ScrollText,
   LogOut
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
@@ -29,6 +30,7 @@ const NAV = [
   { to: '/pagos', label: 'Pagos', Icon: Wallet, adminOnly: false },
   { to: '/liquidaciones', label: 'Liquidaciones', Icon: HandCoins, adminOnly: false },
   { to: '/equipo', label: 'Equipo', Icon: ShieldCheck, adminOnly: true },
+  { to: '/actividad', label: 'Actividad', Icon: ScrollText, adminOnly: true },
   { to: '/ajustes', label: 'Ajustes', Icon: Settings, adminOnly: true }
 ]
 

@@ -201,6 +201,17 @@ export type Configuracion = {
   updated_at: string
 }
 
+export type LogActividad = {
+  id: string
+  usuario_id: string | null
+  usuario_nombre: string | null
+  accion: string
+  tabla_afectada: string
+  registro_id: string | null
+  detalle: Record<string, unknown> | null
+  fecha_hora: string
+}
+
 export type ContratoArchivo = {
   id: string
   contrato_id: string
@@ -262,6 +273,7 @@ export type Database = {
       seguros_propiedad: TableDef<SeguroPropiedad>
       configuracion: TableDef<Configuracion>
       cotizaciones_dolar: TableDef<CotizacionDolar>
+      log_actividad: TableDef<LogActividad>
     }
     Views: Record<string, never>
     Functions: Record<string, never>

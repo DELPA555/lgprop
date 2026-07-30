@@ -313,6 +313,18 @@ Migraciones: `0012_moneda.sql` + `0013_cron_cotizaciones.sql`.
   cotización guardada de cada pago; no se mezclan monedas al sumar).
 - **Ajustes**: selector de qué cotización usar (blue/MEP/oficial) + últimas cotizaciones.
 
+## Auditoría / log de actividad
+
+Migración: `0014_log_actividad.sql` (tabla `log_actividad` + triggers).
+
+- Se registran automáticamente (vía **triggers** que capturan `auth.uid()` + valores
+  antes/después) las acciones sensibles: **cobrar un pago**, **editar el monto/estado** o
+  **eliminar un contrato**, cambiar el **% de comisión** (dueño o propiedad) y marcar una
+  **liquidación como enviada**.
+- Vista **Actividad** (`/actividad`, **solo admin**): filtra por usuario, tipo de acción y
+  rango de fechas. La tabla `log_actividad` sólo la puede **leer el admin** (RLS); la
+  escritura la hacen funciones `SECURITY DEFINER`.
+
 ## Roles
 
 - **admin**: acceso total, incluida la gestión del equipo (`usuarios_equipo`).
