@@ -54,6 +54,32 @@ export function computeProximaActualizacion(
   return next
 }
 
+/**
+ * Meses (enteros) entre dos fechas ISO, redondeando al plazo más plausible.
+ * Pensado para derivar la duración de un contrato desde inicio/fin, tolerando
+ * el caso típico de "termina el día anterior al aniversario"
+ * (ej. 2025-08-01 → 2026-07-31 = 12 meses). Devuelve null si falta alguna fecha.
+ */
+export function monthsBetween(inicio: string, fin: string): number | null {
+  if (!inicio || !fin) return null
+  const a = parse(inicio)
+  const b = parse(fin)
+  const base = (b.y - a.y) * 12 + (b.m - a.m)
+  const daysDiff = (x: string, y: string): number =>
+    Math.round((Date.parse(x + 'T00:00:00Z') - Date.parse(y + 'T00:00:00Z')) / 86400000)
+  let best = Math.max(0, base)
+  let bestDiff = Infinity
+  for (let n = Math.max(0, base - 1); n <= base + 2; n++) {
+    const cand = addMonthsISO(inicio, n)
+    const diff = Math.abs(daysDiff(cand, fin))
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = n
+    }
+  }
+  return best
+}
+
 /** Días entre hoy y una fecha ISO (positivo = futuro). */
 export function daysUntil(iso: string | null): number | null {
   if (!iso) return null
