@@ -44,7 +44,11 @@ El JSON debe tener EXACTAMENTE estas claves (usá null cuando el dato no figure 
 {
   "nombre_inquilino": string|null,
   "dni_inquilino": string|null,
+  "email_inquilino": string|null,
+  "telefono_inquilino": string|null,
   "nombre_dueno": string|null,
+  "email_dueno": string|null,
+  "telefono_dueno": string|null,
   "direccion_propiedad": string|null,
   "monto_inicial": number|null,
   "fecha_inicio": string|null,        // formato YYYY-MM-DD
@@ -56,6 +60,11 @@ El JSON debe tener EXACTAMENTE estas claves (usá null cuando el dato no figure 
 
 Reglas:
 - "monto_inicial" y "monto_expensas" son números sin símbolos ni separadores de miles (ej: 250000.5).
+- El email y el teléfono de cada parte suelen estar en el encabezado, en los domicilios
+  constituidos, o en la cláusula de notificaciones/domicilios. Buscalos ahí. Si el contrato
+  no los menciona (pasa seguido, sobre todo el email), dejá esa clave en null: NO inventes
+  ni asumas datos de contacto. Asociá cada email/teléfono a la parte correcta (inquilino/locatario
+  vs dueño/locador) según a quién corresponda el domicilio o la mención.
 - Mapeá el índice de actualización a la opción más parecida de la lista. Si el contrato usa
   un porcentaje fijo por período, poné "Porcentaje fijo". Si dice que el ajuste es manual o a
   convenir, poné "Manual". Si no se menciona ningún ajuste, poné null.

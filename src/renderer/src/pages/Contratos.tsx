@@ -40,7 +40,11 @@ type Form = Partial<Contrato>
 type Extraido = {
   nombre_inquilino?: string | null
   dni_inquilino?: string | null
+  email_inquilino?: string | null
+  telefono_inquilino?: string | null
   nombre_dueno?: string | null
+  email_dueno?: string | null
+  telefono_dueno?: string | null
   direccion_propiedad?: string | null
   monto_inicial?: number | null
   fecha_inicio?: string | null
@@ -280,11 +284,17 @@ export default function Contratos(): JSX.Element {
   }
 
   // Crear al vuelo la entidad que la IA leyó pero no existe todavía
+  // (precarga email/teléfono extraídos del contrato)
   const createInquilino = async (): Promise<void> => {
     if (!extraido?.nombre_inquilino) return
     const { data, error } = await supabase
       .from('inquilinos')
-      .insert({ nombre: extraido.nombre_inquilino, dni: extraido.dni_inquilino || null })
+      .insert({
+        nombre: extraido.nombre_inquilino,
+        dni: extraido.dni_inquilino || null,
+        email: extraido.email_inquilino || null,
+        telefono: extraido.telefono_inquilino || null
+      })
       .select()
       .single()
     if (error || !data) return void toast.error(error?.message ?? 'No se pudo crear el inquilino')
@@ -296,13 +306,36 @@ export default function Contratos(): JSX.Element {
     if (!extraido?.nombre_dueno) return
     const { data, error } = await supabase
       .from('duenos')
-      .insert({ nombre: extraido.nombre_dueno })
+      .insert({
+        nombre: extraido.nombre_dueno,
+        email: extraido.email_dueno || null,
+        telefono: extraido.telefono_dueno || null
+      })
       .select()
       .single()
     if (error || !data) return void toast.error(error?.message ?? 'No se pudo crear el dueño')
     await load()
     patch({ dueno_id: data.id })
     toast.success('Dueño creado')
+  }
+
+  // Enriquecer una ficha existente con un dato de contacto que trae el contrato
+  // (sin sobreescribir: solo si el registro no lo tenía).
+  const agregarDatoFicha = async (
+    tabla: 'inquilinos' | 'duenos',
+    id: string,
+    campo: 'email' | 'telefono',
+    valor: string
+  ): Promise<void> => {
+    const payload: { email?: string; telefono?: string } =
+      campo === 'email' ? { email: valor } : { telefono: valor }
+    const { error } =
+      tabla === 'inquilinos'
+        ? await supabase.from('inquilinos').update(payload).eq('id', id)
+        : await supabase.from('duenos').update(payload).eq('id', id)
+    if (error) return void toast.error(error.message)
+    await load()
+    toast.success(`${campo === 'email' ? 'Email' : 'Teléfono'} agregado a la ficha`)
   }
   const createPropiedad = async (): Promise<void> => {
     if (!extraido?.direccion_propiedad) return
@@ -607,11 +640,27 @@ export default function Contratos(): JSX.Element {
                   <div>
                     Inquilino: <span className="text-zinc-200">{extraido.nombre_inquilino}</span>
                     {extraido.dni_inquilino ? ` (DNI ${extraido.dni_inquilino})` : ''}
+                    {(extraido.email_inquilino || extraido.telefono_inquilino) && (
+                      <span className="text-zinc-500">
+                        {' — '}
+                        {[extraido.email_inquilino, extraido.telefono_inquilino]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    )}
                   </div>
                 )}
                 {extraido.nombre_dueno && (
                   <div>
                     Dueño: <span className="text-zinc-200">{extraido.nombre_dueno}</span>
+                    {(extraido.email_dueno || extraido.telefono_dueno) && (
+                      <span className="text-zinc-500">
+                        {' — '}
+                        {[extraido.email_dueno, extraido.telefono_dueno]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    )}
                   </div>
                 )}
                 {extraido.direccion_propiedad && (
@@ -649,6 +698,62 @@ export default function Contratos(): JSX.Element {
                   )}
                 </div>
               )}
+              {(() => {
+                const linkedInq = inquilinos.find((i) => i.id === form.inquilino_id)
+                const linkedDue = duenos.find((d) => d.id === form.dueno_id)
+                const sug: JSX.Element[] = []
+                const chip = (
+                  key: string,
+                  label: string,
+                  onClick: () => void
+                ): JSX.Element => (
+                  <button
+                    key={key}
+                    onClick={onClick}
+                    className="flex items-center gap-1 px-2 py-1 rounded-md border border-sky-500/30 text-sky-300 hover:bg-sky-500/10"
+                  >
+                    <Plus size={12} /> {label}
+                  </button>
+                )
+                if (linkedInq && extraido.email_inquilino && !linkedInq.email)
+                  sug.push(
+                    chip('inq-email', `Agregar email a ${linkedInq.nombre}`, () =>
+                      agregarDatoFicha('inquilinos', linkedInq.id, 'email', extraido.email_inquilino!)
+                    )
+                  )
+                if (linkedInq && extraido.telefono_inquilino && !linkedInq.telefono)
+                  sug.push(
+                    chip('inq-tel', `Agregar teléfono a ${linkedInq.nombre}`, () =>
+                      agregarDatoFicha(
+                        'inquilinos',
+                        linkedInq.id,
+                        'telefono',
+                        extraido.telefono_inquilino!
+                      )
+                    )
+                  )
+                if (linkedDue && extraido.email_dueno && !linkedDue.email)
+                  sug.push(
+                    chip('due-email', `Agregar email a ${linkedDue.nombre}`, () =>
+                      agregarDatoFicha('duenos', linkedDue.id, 'email', extraido.email_dueno!)
+                    )
+                  )
+                if (linkedDue && extraido.telefono_dueno && !linkedDue.telefono)
+                  sug.push(
+                    chip('due-tel', `Agregar teléfono a ${linkedDue.nombre}`, () =>
+                      agregarDatoFicha('duenos', linkedDue.id, 'telefono', extraido.telefono_dueno!)
+                    )
+                  )
+                if (sug.length === 0) return null
+                return (
+                  <div className="pt-2 mt-1 border-t border-sky-500/10 space-y-1.5">
+                    <p className="text-[11px] text-amber-300">
+                      Datos de contacto en el contrato que no están en la ficha:
+                    </p>
+                    <div className="flex flex-wrap gap-2">{sug}</div>
+                  </div>
+                )
+              })()}
             </div>
           )}
           {/* Partes */}
