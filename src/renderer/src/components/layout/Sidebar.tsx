@@ -16,7 +16,8 @@ import {
   ScrollText,
   LogOut,
   Home,
-  Building
+  Building,
+  CheckSquare
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
@@ -41,7 +42,8 @@ const GROUPS: NavGroup[] = [
       { to: '/duenos', label: 'Dueños', Icon: Users },
       { to: '/inquilinos', label: 'Inquilinos', Icon: UserSquare2 },
       { to: '/contratos', label: 'Contratos', Icon: FileText },
-      { to: '/mantenimiento', label: 'Mantenimiento', Icon: Wrench }
+      { to: '/mantenimiento', label: 'Mantenimiento', Icon: Wrench },
+      { to: '/tareas', label: 'Tareas', Icon: CheckSquare }
     ]
   },
   {

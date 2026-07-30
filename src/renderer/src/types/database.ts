@@ -358,6 +358,21 @@ export type Asamblea = {
   created_at: string
 }
 
+export type PrioridadTarea = 'baja' | 'normal' | 'alta'
+export type Tarea = {
+  id: string
+  titulo: string
+  descripcion: string | null
+  completada: boolean
+  prioridad: PrioridadTarea
+  asignado_a: string | null
+  propiedad_id: string | null
+  fecha_limite: string | null
+  creada_por: string | null
+  completada_at: string | null
+  created_at: string
+}
+
 export type Notificacion = {
   id: string
   tipo: TipoNotificacion
@@ -409,6 +424,7 @@ export type Database = {
       fondo_reserva: TableDef<MovimientoFondoReserva>
       reclamos_consorcio: TableDef<ReclamoConsorcio>
       asambleas: TableDef<Asamblea>
+      tareas: TableDef<Tarea>
     }
     Views: Record<string, never>
     Functions: Record<string, never>

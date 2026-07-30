@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Pencil, Search, Loader2, Wallet } from 'lucide-react'
+import { Plus, Pencil, Search, Loader2, Wallet, Receipt } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type { Pago, Contrato, Propiedad, Inquilino, EstadoPago } from '@/types/database'
 import PageHeader from '@/components/PageHeader'
@@ -11,6 +11,7 @@ import { formatARS, formatDate, formatMoneda } from '@/lib/format'
 import { todayISO } from '@/lib/dates'
 import ExportarContableButton from '@/components/ExportarContableButton'
 import TelefonoWhatsApp, { msgPago } from '@/components/ui/TelefonoWhatsApp'
+import { generarReciboPDF } from '@/lib/reciboPdf'
 import type { Moneda } from '@/types/database'
 
 const currentYM = (): string => todayISO().slice(0, 7)
@@ -96,6 +97,40 @@ export default function Pagos(): JSX.Element {
     const c = contratoMap[contratoId]
     if (!c) return 'Contrato'
     return `${propMap[c.propiedad_id] ?? 'Propiedad'} · ${inqMap[c.inquilino_id] ?? ''}`
+  }
+
+  const mesAnio = (mesISO: string): string => {
+    const [y, m] = mesISO.slice(0, 10).split('-')
+    const dte = new Date(Number(y), Number(m) - 1, 1)
+    return new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' }).format(dte)
+  }
+
+  const descargarRecibo = async (p: Pago): Promise<void> => {
+    const c = contratoMap[p.contrato_id]
+    const periodo = mesAnio(p.mes_correspondiente)
+    const moneda = monedaDe(p.contrato_id)
+    const ym = p.mes_correspondiente.slice(0, 7).replace('-', '')
+    try {
+      await generarReciboPDF(
+        {
+          numero: `${ym}-${p.id.slice(0, 6).toUpperCase()}`,
+          fecha: formatDate(p.fecha_pago ?? todayISO()),
+          inquilino: c ? inqMap[c.inquilino_id] ?? 'Inquilino' : 'Inquilino',
+          propiedad: c ? propMap[c.propiedad_id] ?? 'Propiedad' : 'Propiedad',
+          periodoLabel: periodo,
+          concepto: `Alquiler correspondiente a ${periodo}`,
+          moneda,
+          monto: p.monto
+        },
+        `recibo-${ym}-${(c ? propMap[c.propiedad_id] ?? '' : '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 40)}.pdf`
+      )
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
   }
 
   const filtered = useMemo(() => {
@@ -370,7 +405,16 @@ export default function Pagos(): JSX.Element {
                     {p.fecha_pago ? formatDate(p.fecha_pago) : '—'}
                   </td>
                   <td className="px-4 py-2.5">
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-1">
+                      {p.estado === 'pagado' && (
+                        <button
+                          onClick={() => descargarRecibo(p)}
+                          className="p-1.5 rounded-md text-ink-2 hover:text-ok hover:bg-white/5"
+                          title="Descargar recibo (PDF)"
+                        >
+                          <Receipt size={15} />
+                        </button>
+                      )}
                       <button
                         onClick={() => openEdit(p)}
                         className="p-1.5 rounded-md text-ink-2 hover:text-ink hover:bg-white/5"
