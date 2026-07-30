@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import electronUpdater from 'electron-updater'
+import { registerSessionIpc } from './sessionStore'
 
 const { autoUpdater } = electronUpdater
 
@@ -75,6 +76,8 @@ app.whenReady().then(() => {
   ipcMain.handle('shell:openExternal', (_e, url: string) => shell.openExternal(url))
   // Reiniciar para aplicar la actualización ya descargada
   ipcMain.handle('update:restart', () => autoUpdater.quitAndInstall())
+  // Almacenamiento seguro de la sesión (login persistente)
+  registerSessionIpc()
 
   if (mainWindow) setupAutoUpdater(mainWindow)
 

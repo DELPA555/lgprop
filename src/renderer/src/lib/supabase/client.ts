@@ -13,11 +13,24 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
+// En Electron persistimos la sesión con almacenamiento cifrado (safeStorage) vía
+// el proceso principal, en lugar de localStorage (que bajo file:// no es confiable).
+// Fuera de Electron (dev en navegador) usamos el storage por defecto.
+const bridge = typeof window !== 'undefined' ? window.lgprop?.session : undefined
+const secureStorage = bridge
+  ? {
+      getItem: (key: string): Promise<string | null> => bridge.getItem(key),
+      setItem: (key: string, value: string): Promise<void> => bridge.setItem(key, value),
+      removeItem: (key: string): Promise<void> => bridge.removeItem(key)
+    }
+  : undefined
+
 export const supabase = createClient<Database>(supabaseUrl ?? '', supabaseAnonKey ?? '', {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false
+    detectSessionInUrl: false,
+    ...(secureStorage ? { storage: secureStorage } : {})
   }
 })
 
