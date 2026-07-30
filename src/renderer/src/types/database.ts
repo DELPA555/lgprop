@@ -270,6 +270,32 @@ export type UnidadFuncional = {
   created_at: string
 }
 
+export type ProveedorEdificio = {
+  id: string
+  consorcio_id: string
+  nombre: string
+  servicio: string | null
+  telefono: string | null
+  email: string | null
+  frecuencia_pago: string | null
+  condiciones: string | null
+  notas: string | null
+  created_at: string
+}
+
+export type GastoEdificio = {
+  id: string
+  consorcio_id: string
+  proveedor_id: string | null
+  concepto: string
+  categoria: string | null
+  monto: number
+  fecha: string
+  mes_correspondiente: string
+  notas: string | null
+  created_at: string
+}
+
 export type Notificacion = {
   id: string
   tipo: TipoNotificacion
@@ -314,6 +340,8 @@ export type Database = {
       consorcios: TableDef<Consorcio>
       propietarios_consorcio: TableDef<PropietarioConsorcio>
       unidades_funcionales: TableDef<UnidadFuncional>
+      proveedores_edificio: TableDef<ProveedorEdificio>
+      gastos_edificio: TableDef<GastoEdificio>
     }
     Views: Record<string, never>
     Functions: Record<string, never>

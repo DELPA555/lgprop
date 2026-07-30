@@ -16,6 +16,8 @@ import Modal from '@/components/ui/Modal'
 import { Field, TextInput, TextArea, Select } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate } from '@/lib/format'
+import ProveedoresSection from '@/components/consorcios/ProveedoresSection'
+import GastosSection from '@/components/consorcios/GastosSection'
 
 const NUEVO = '__new__'
 
@@ -331,6 +333,10 @@ export default function ConsorcioDetalle(): JSX.Element {
               La suma de los % fiscales debería dar 100%. Actualmente suma {totalRound}%.
             </p>
           )}
+
+          {/* Tanda 2: gastos + proveedores del edificio */}
+          <GastosSection consorcioId={id} />
+          <ProveedoresSection consorcioId={id} />
         </>
       )}
 

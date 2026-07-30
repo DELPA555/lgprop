@@ -367,8 +367,17 @@ Migración: `0019_consorcios.sql`.
 - **Vistas**: `Consorcios` (ABM + % asignado por edificio) y detalle `/consorcios/:id`
   (info del edificio + ABM de unidades con alta rápida de propietario y contacto por WhatsApp).
 
-**Próximas tandas (pendientes)**: 2) Gastos + Proveedores · 3) Liquidación de expensas +
-Fondo de reserva · 4) Reclamos + Asambleas · 5) Avisos automáticos integrados al cron.
+**Tanda 2 (lista): Proveedores + Gastos** — migración `0020_gastos_proveedores.sql`.
+
+- **`proveedores_edificio`**: proveedores por edificio (nombre, servicio, contacto con WhatsApp,
+  frecuencia de pago, contrato/condiciones).
+- **`gastos_edificio`**: gastos por mes y **categoría** (limpieza, seguridad, ascensor, luz, gas,
+  sueldos, etc.), con proveedor asociado, monto y a qué mes de liquidación imputan.
+- Ambos se administran como **secciones dentro del detalle del consorcio**
+  (`/consorcios/:id`), con selector de mes y total del mes en Gastos.
+
+**Próximas tandas (pendientes)**: 3) Liquidación de expensas + Fondo de reserva ·
+4) Reclamos + Asambleas · 5) Avisos automáticos integrados al cron.
 
 ## Roles
 
