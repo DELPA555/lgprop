@@ -91,12 +91,16 @@ Deno.serve(async () => {
     if (Number.isFinite(n) && n > 0) diasAnticipacion = n
   }
 
+  // Nota: solo se avisa por propiedades ADMINISTRADAS por LG Prop. Las cargadas
+  // como referencia (administrada = false) no generan avisos de ningún tipo.
+
   // 1) Vencimientos de contrato dentro de la anticipación configurada
   {
     const { data } = await supabase
       .from('contratos')
-      .select('id, fecha_fin, propiedades(direccion)')
+      .select('id, fecha_fin, propiedades!inner(direccion, administrada)')
       .eq('estado', 'activo')
+      .eq('propiedades.administrada', true)
       .gte('fecha_fin', HOY)
       .lte('fecha_fin', enDias(diasAnticipacion))
     for (const c of data ?? []) {
@@ -114,8 +118,11 @@ Deno.serve(async () => {
   {
     const { data } = await supabase
       .from('contratos')
-      .select('id, monto_actual, indice_actualizacion, proxima_actualizacion, propiedades(direccion)')
+      .select(
+        'id, monto_actual, indice_actualizacion, proxima_actualizacion, propiedades!inner(direccion, administrada)'
+      )
       .eq('estado', 'activo')
+      .eq('propiedades.administrada', true)
       .not('proxima_actualizacion', 'is', null)
       .lte('proxima_actualizacion', enDias(7))
     for (const c of data ?? []) {
@@ -133,8 +140,11 @@ Deno.serve(async () => {
   {
     const { data } = await supabase
       .from('pagos')
-      .select('id, contrato_id, mes_correspondiente, monto, contratos(propiedades(direccion))')
+      .select(
+        'id, contrato_id, mes_correspondiente, monto, contratos!inner(propiedades!inner(direccion, administrada))'
+      )
       .eq('estado', 'atrasado')
+      .eq('contratos.propiedades.administrada', true)
     for (const p of data ?? []) {
       const dir = (p as any).contratos?.propiedades?.direccion ?? 'la propiedad'
       pendientes.push({
@@ -150,8 +160,11 @@ Deno.serve(async () => {
   {
     const { data } = await supabase
       .from('pagos')
-      .select('id, contrato_id, mes_correspondiente, contratos(propiedades(direccion))')
+      .select(
+        'id, contrato_id, mes_correspondiente, contratos!inner(propiedades!inner(direccion, administrada))'
+      )
       .eq('expensas_pagadas', false)
+      .eq('contratos.propiedades.administrada', true)
       .lte('mes_correspondiente', HOY)
     for (const p of data ?? []) {
       const dir = (p as any).contratos?.propiedades?.direccion ?? 'la propiedad'
@@ -168,7 +181,8 @@ Deno.serve(async () => {
   {
     const { data } = await supabase
       .from('contratos')
-      .select('id, monto_deposito, propiedades(direccion)')
+      .select('id, monto_deposito, propiedades!inner(direccion, administrada)')
+      .eq('propiedades.administrada', true)
       .in('estado', ['vencido', 'rescindido'])
       .eq('estado_deposito', 'retenido')
       .gt('monto_deposito', 0)
@@ -188,7 +202,8 @@ Deno.serve(async () => {
   {
     const { data } = await supabase
       .from('seguros_propiedad')
-      .select('id, tipo, aseguradora, fecha_vencimiento, propiedades(direccion)')
+      .select('id, tipo, aseguradora, fecha_vencimiento, propiedades!inner(direccion, administrada)')
+      .eq('propiedades.administrada', true)
       .gte('fecha_vencimiento', HOY)
       .lte('fecha_vencimiento', enDias(diasAnticipacion))
     for (const s of data ?? []) {

@@ -131,6 +131,9 @@ export default function Liquidaciones(): JSX.Element {
     for (const p of pagos) {
       const c = contratoMap[p.contrato_id]
       if (!c) continue
+      // Excluir propiedades NO administradas: no se liquidan.
+      const propDelPago = propMap[c.propiedad_id]
+      if (propDelPago && propDelPago.administrada === false) continue
       const rate = p.cotizacion_usada // null si es ARS
       const brutoP = p.monto_ars ?? p.monto
       const comisionP = rate ? p.monto_comision * rate : p.monto_comision
@@ -285,7 +288,7 @@ export default function Liquidaciones(): JSX.Element {
         />
         <p className="text-xs text-ink-3">
           Se liquidan los pagos con estado <span className="text-ok">cobrado</span> del
-          período.
+          período. Solo <span className="text-ink-2">propiedades administradas</span>.
           {hayUSD && (
             <span className="text-ink-3">
               {' '}

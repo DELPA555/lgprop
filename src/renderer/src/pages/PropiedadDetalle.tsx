@@ -27,6 +27,8 @@ import { listarArchivosPorContratos } from '@/lib/contratoArchivos'
 import ArchivoPreviewModal from '@/components/ArchivoPreviewModal'
 import ConfigNotice from '@/components/ConfigNotice'
 import ConfirmDialog from '@/components/ui/ConfirmDialog'
+import EstadoChip from '@/components/ui/EstadoChip'
+import ContratoMontos from '@/components/ui/ContratoMontos'
 import { useToast } from '@/components/ui/Toast'
 import { formatARS, formatDate } from '@/lib/format'
 import { daysUntil } from '@/lib/dates'
@@ -48,6 +50,7 @@ export default function PropiedadDetalle(): JSX.Element {
   const [reclamos, setReclamos] = useState<Mantenimiento[]>([])
   const [seguros, setSeguros] = useState<SeguroPropiedad[]>([])
   const [contratos, setContratos] = useState<Contrato[]>([])
+  const [pendientesSet, setPendientesSet] = useState<Set<string>>(new Set())
   const [inqMap, setInqMap] = useState<Record<string, string>>({})
   const [archivosPorContrato, setArchivosPorContrato] = useState<
     Record<string, ContratoArchivo[]>
@@ -61,6 +64,37 @@ export default function PropiedadDetalle(): JSX.Element {
   const [seguroModalOpen, setSeguroModalOpen] = useState(false)
   const [editingSeguro, setEditingSeguro] = useState<SeguroPropiedad | null>(null)
   const [delSeguro, setDelSeguro] = useState<SeguroPropiedad | null>(null)
+  const [confirmUnmark, setConfirmUnmark] = useState(false)
+  const [savingAdmin, setSavingAdmin] = useState(false)
+
+  const contratosActivos = useMemo(
+    () => contratos.filter((c) => c.estado === 'activo').length,
+    [contratos]
+  )
+
+  const aplicarAdministrada = async (next: boolean): Promise<void> => {
+    if (!prop) return
+    setSavingAdmin(true)
+    const { error } = await supabase
+      .from('propiedades')
+      .update({ administrada: next })
+      .eq('id', prop.id)
+    setSavingAdmin(false)
+    setConfirmUnmark(false)
+    if (error) return void toast.error(error.message)
+    setProp({ ...prop, administrada: next })
+    toast.success(next ? 'Propiedad marcada como administrada' : 'Propiedad marcada como no administrada')
+  }
+
+  const toggleAdministrada = (): void => {
+    if (!prop) return
+    // Al desmarcar con contratos activos, confirmar qué implica.
+    if (prop.administrada && contratosActivos > 0) {
+      setConfirmUnmark(true)
+      return
+    }
+    void aplicarAdministrada(!prop.administrada)
+  }
 
   const load = async (): Promise<void> => {
     if (!isSupabaseConfigured || !id) {
@@ -94,6 +128,17 @@ export default function PropiedadDetalle(): JSX.Element {
       .eq('propiedad_id', id)
       .order('fecha_inicio', { ascending: false })
     setContratos(ctr ?? [])
+    const ctrIds = (ctr ?? []).map((c) => c.id)
+    if (ctrIds.length > 0) {
+      const { data: act } = await supabase
+        .from('actualizaciones_contrato')
+        .select('contrato_id')
+        .eq('confirmado_por_usuario', false)
+        .in('contrato_id', ctrIds)
+      setPendientesSet(new Set((act ?? []).map((a) => a.contrato_id)))
+    } else {
+      setPendientesSet(new Set())
+    }
     const inqIds = [...new Set((ctr ?? []).map((c) => c.inquilino_id))]
     if (inqIds.length > 0) {
       const { data: inqs } = await supabase
@@ -188,7 +233,36 @@ export default function PropiedadDetalle(): JSX.Element {
         <>
           {/* Info de la propiedad */}
           <div className="card p-5 mb-5">
-            <h1 className="text-lg font-semibold text-white">{prop.direccion}</h1>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <h1 className="text-lg font-semibold text-white">{prop.direccion}</h1>
+                {prop.administrada ? (
+                  <EstadoChip tone="ok">Administrada</EstadoChip>
+                ) : (
+                  <EstadoChip tone="muted">No administrada</EstadoChip>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={toggleAdministrada}
+                disabled={savingAdmin}
+                title="Administrada por LG Prop"
+                className="flex items-center gap-2 text-xs text-ink-2 hover:text-ink disabled:opacity-50 shrink-0"
+              >
+                Administrada por LG Prop
+                <span
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                    prop.administrada ? 'bg-accent' : 'bg-border'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      prop.administrada ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </span>
+              </button>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
               <div>
                 <div className="text-xs text-zinc-500 uppercase tracking-wider">Tipo</div>
@@ -252,8 +326,13 @@ export default function PropiedadDetalle(): JSX.Element {
                       <td className="px-4 py-3 text-zinc-400 text-xs whitespace-nowrap">
                         {formatDate(c.fecha_inicio)} → {formatDate(c.fecha_fin)}
                       </td>
-                      <td className="px-4 py-3 text-right text-zinc-300 tabular-nums">
-                        {formatARS(c.monto_actual)}
+                      <td className="px-4 py-3 text-right">
+                        <ContratoMontos
+                          inicial={c.monto_inicial}
+                          actual={c.monto_actual}
+                          moneda={c.moneda}
+                          pendiente={pendientesSet.has(c.id)}
+                        />
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -518,6 +597,16 @@ export default function PropiedadDetalle(): JSX.Element {
         onConfirm={doDelete}
         onClose={() => setDelTarget(null)}
         loading={deleting}
+      />
+
+      <ConfirmDialog
+        open={confirmUnmark}
+        title="Marcar como no administrada"
+        confirmLabel="Sí, marcar como no administrada"
+        message={`Esta propiedad tiene ${contratosActivos} contrato(s) activo(s). Al marcarla como NO administrada, LG Prop deja de generar comisión y de incluirla en las liquidaciones, y no aparecerá en los avisos. Los contratos y pagos existentes se conservan. ¿Confirmás el cambio?`}
+        onConfirm={() => aplicarAdministrada(false)}
+        onClose={() => setConfirmUnmark(false)}
+        loading={savingAdmin}
       />
     </div>
   )
