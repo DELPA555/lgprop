@@ -150,8 +150,28 @@ export default function Actualizaciones(): JSX.Element {
 
   // ── Pedir aprobación al dueño por email (link firmado) ──
   const solicitarAprobacion = async (a: ActualizacionContrato): Promise<void> => {
+    const montoFinal = montoEditado(a)
+    if (!montoFinal || montoFinal <= 0)
+      return void toast.error('Cargá un nuevo monto válido antes de pedir la aprobación')
     setSolicitando(a.id)
     try {
+      // Persistir el monto editado para que el email y la aprobación reflejen
+      // exactamente lo que se va a aplicar (evita aprobar un monto y confirmar otro).
+      if (montoFinal !== a.monto_nuevo) {
+        const up = await supabase
+          .from('actualizaciones_contrato')
+          .update({ monto_nuevo: montoFinal })
+          .eq('id', a.id)
+        if (up.error) {
+          setSolicitando(null)
+          return void toast.error(up.error.message)
+        }
+        setEdits((m) => {
+          const n = { ...m }
+          delete n[a.id]
+          return n
+        })
+      }
       const { data, error } = await supabase.functions.invoke('solicitar-aprobacion-aumento', {
         body: { actualizacion_id: a.id }
       })
@@ -404,8 +424,18 @@ export default function Actualizaciones(): JSX.Element {
                       <input
                         type="number"
                         min={0}
-                        className="input w-36 py-1"
+                        className="input w-36 py-1 disabled:opacity-60"
                         value={edits[a.id] ?? String(a.monto_nuevo)}
+                        disabled={
+                          a.aprobacion_estado === 'pendiente' || a.aprobacion_estado === 'aprobado'
+                        }
+                        title={
+                          a.aprobacion_estado === 'pendiente'
+                            ? 'Bloqueado: el dueño está revisando este monto'
+                            : a.aprobacion_estado === 'aprobado'
+                              ? 'Bloqueado: el dueño aprobó este monto'
+                              : ''
+                        }
                         onChange={(e) => setEdits((m) => ({ ...m, [a.id]: e.target.value }))}
                       />
                       <span

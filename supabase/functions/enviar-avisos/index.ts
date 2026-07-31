@@ -335,7 +335,8 @@ Deno.serve(async () => {
       const dir = (v as any)?.propiedades?.direccion ?? v.visitante ?? 'una propiedad'
       const cuando = new Date(v.fecha).toLocaleString('es-AR', {
         dateStyle: 'short',
-        timeStyle: 'short'
+        timeStyle: 'short',
+        timeZone: 'America/Argentina/Buenos_Aires'
       })
       pendientes.push({
         tipo: 'visita_proxima',
