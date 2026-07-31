@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calculator, Check, X, Loader2, ArrowRight, History } from 'lucide-react'
+import { Calculator, Check, X, Loader2, ArrowRight, History, MailCheck, Send } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type {
   ActualizacionContrato,
@@ -15,6 +15,8 @@ import { formatARS, formatDate } from '@/lib/format'
 import TelefonoWhatsApp, { msgActualizacion } from '@/components/ui/TelefonoWhatsApp'
 import { addMonthsISO, todayISO } from '@/lib/dates'
 import { calcularActualizacion } from '@/lib/actualizaciones'
+import { edgeErrorMessage } from '@/lib/edgeError'
+import EstadoChip from '@/components/ui/EstadoChip'
 
 export default function Actualizaciones(): JSX.Element {
   const toast = useToast()
@@ -26,6 +28,7 @@ export default function Actualizaciones(): JSX.Element {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [solicitando, setSolicitando] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, string>>({})
 
   const contratoMap = useMemo(() => {
@@ -145,10 +148,31 @@ export default function Actualizaciones(): JSX.Element {
   const montoEditado = (a: ActualizacionContrato): number =>
     Number(edits[a.id] ?? a.monto_nuevo)
 
+  // ── Pedir aprobación al dueño por email (link firmado) ──
+  const solicitarAprobacion = async (a: ActualizacionContrato): Promise<void> => {
+    setSolicitando(a.id)
+    try {
+      const { data, error } = await supabase.functions.invoke('solicitar-aprobacion-aumento', {
+        body: { actualizacion_id: a.id }
+      })
+      if (error) return void toast.error(await edgeErrorMessage(error, 'No se pudo enviar la solicitud'))
+      if (!data?.ok) return void toast.error(data?.error ?? 'No se pudo enviar la solicitud')
+      toast.success(`Solicitud enviada al dueño (${data.email})`)
+      await load()
+    } finally {
+      setSolicitando(null)
+    }
+  }
+
   // ── Confirmar: aplica el nuevo monto al contrato y avanza la próxima fecha ──
   const confirmar = async (a: ActualizacionContrato): Promise<void> => {
     const c = contratoMap[a.contrato_id]
     if (!c) return
+    // Si se pidió aprobación, respetar la decisión del dueño
+    if (a.aprobacion_estado === 'pendiente')
+      return void toast.error('Esperando la aprobación del dueño. Todavía no respondió.')
+    if (a.aprobacion_estado === 'rechazado')
+      return void toast.error('El dueño rechazó este aumento. No se puede aplicar.')
     const montoFinal = montoEditado(a)
     if (!montoFinal || montoFinal <= 0) return void toast.error('El nuevo monto debe ser mayor a 0')
 
@@ -282,8 +306,19 @@ export default function Actualizaciones(): JSX.Element {
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => confirmar(a)}
-                      disabled={busyId === a.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
+                      disabled={
+                        busyId === a.id ||
+                        a.aprobacion_estado === 'pendiente' ||
+                        a.aprobacion_estado === 'rechazado'
+                      }
+                      title={
+                        a.aprobacion_estado === 'pendiente'
+                          ? 'Esperando la aprobación del dueño'
+                          : a.aprobacion_estado === 'rechazado'
+                            ? 'El dueño rechazó este aumento'
+                            : 'Aplicar el aumento al contrato'
+                      }
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {busyId === a.id ? (
                         <Loader2 size={13} className="animate-spin" />
@@ -300,6 +335,59 @@ export default function Actualizaciones(): JSX.Element {
                       <X size={13} /> Descartar
                     </button>
                   </div>
+                </div>
+
+                {/* Aprobación del dueño (paso opcional) */}
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  {a.aprobacion_estado === 'aprobado' ? (
+                    <EstadoChip tone="ok">Aprobado por el dueño</EstadoChip>
+                  ) : a.aprobacion_estado === 'rechazado' ? (
+                    <>
+                      <EstadoChip tone="bad">Rechazado por el dueño</EstadoChip>
+                      <button
+                        onClick={() => solicitarAprobacion(a)}
+                        disabled={solicitando === a.id}
+                        className="flex items-center gap-1 text-[11px] text-ink-3 hover:text-info disabled:opacity-50"
+                      >
+                        {solicitando === a.id ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : (
+                          <Send size={11} />
+                        )}
+                        Volver a pedir
+                      </button>
+                    </>
+                  ) : a.aprobacion_estado === 'pendiente' ? (
+                    <>
+                      <EstadoChip tone="warn">Esperando aprobación del dueño</EstadoChip>
+                      <button
+                        onClick={() => solicitarAprobacion(a)}
+                        disabled={solicitando === a.id}
+                        className="flex items-center gap-1 text-[11px] text-ink-3 hover:text-info disabled:opacity-50"
+                      >
+                        {solicitando === a.id ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : (
+                          <Send size={11} />
+                        )}
+                        Reenviar email
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => solicitarAprobacion(a)}
+                      disabled={solicitando === a.id}
+                      className="flex items-center gap-1.5 text-[11px] text-info hover:text-info/80 disabled:opacity-50"
+                      title="Enviar un email al dueño para que apruebe o rechace este aumento"
+                    >
+                      {solicitando === a.id ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <MailCheck size={12} />
+                      )}
+                      Pedir aprobación al dueño
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border">

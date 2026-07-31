@@ -425,6 +425,24 @@ Rivadavia 2500"). Captura rápida (título + Enter), o con detalle: prioridad, a
 propiedad relacionada y fecha límite (marca en rojo si venció). Filtro pendientes/todas/hechas y
 check para completar.
 
+## Aprobación de aumentos por el dueño (por email, link firmado)
+
+Migración `0027_aprobacion_aumentos.sql`. Edge Functions `solicitar-aprobacion-aumento`
+(autenticada) y `aprobar-aumento` (**pública**, API JSON) + página estática `docs/aprobar.html`
+(GitHub Pages).
+
+Paso **opcional** antes de confirmar un aumento: en **Actualizaciones**, "Pedir aprobación al
+dueño" le manda un email con **link firmado** (token único, vence en 14 días, un solo uso). El
+dueño abre la página de aprobación y toca **Aprobar / Rechazar** — la mutación va por POST (el GET
+solo muestra, así un cliente de correo que "pre-cargue" el link no aprueba solo). El botón
+**Confirmar** queda bloqueado hasta que el dueño **apruebe** (o si **rechaza**). El aviso al
+inquilino sigue siendo manual.
+
+> **Por qué una página estática**: el gateway de Supabase Functions fuerza `text/plain` + CSP
+> `sandbox`, así que no puede servir HTML renderizado. La página vive en **GitHub Pages** del repo
+> (`/docs`) y consume la función como API JSON. Si cambia la URL, se puede fijar con el secret
+> `APROBACION_BASE_URL` en Supabase.
+
 ## Contabilidad interna + Ranking de rentabilidad (solo admin)
 
 Migración `0026_gastos_lgprop.sql`. Sección **Contabilidad** (grupo Finanzas, **solo admin** — RLS
