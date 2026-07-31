@@ -425,6 +425,19 @@ Rivadavia 2500"). Captura rápida (título + Enter), o con detalle: prioridad, a
 propiedad relacionada y fecha límite (marca en rojo si venció). Filtro pendientes/todas/hechas y
 check para completar.
 
+## Contabilidad interna + Ranking de rentabilidad (solo admin)
+
+Migración `0026_gastos_lgprop.sql`. Sección **Contabilidad** (grupo Finanzas, **solo admin** — RLS
+`is_admin()`).
+
+- **Gastos propios**: `gastos_lgprop` — sueldos del equipo, herramientas, oficina, impuestos, etc.,
+  separados de la plata de terceros que se administra. ABM por mes, categorizado.
+- **Rentabilidad real**: comisión cobrada (ARS-equivalente, USD convertido) **menos** los gastos
+  propios = **rentabilidad neta**, por mes y por año. Se muestra también en el **hero del Dashboard**
+  (solo para admins).
+- **Rankings** (del año): propiedades y dueños que **más comisión** generan, y **mayor rotación**
+  (propiedades con más contratos finalizados / no renovados).
+
 ## Prospectos (CRM) + Agenda de visitas
 
 Migración `0025_prospectos_visitas.sql`. Secciones **Prospectos** y **Agenda** (grupo Operación).

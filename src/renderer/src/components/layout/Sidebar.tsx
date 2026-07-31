@@ -19,7 +19,8 @@ import {
   Building,
   CheckSquare,
   Contact,
-  CalendarDays
+  CalendarDays,
+  Landmark
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
@@ -56,7 +57,8 @@ const GROUPS: NavGroup[] = [
       { to: '/pagos', label: 'Pagos', Icon: Wallet },
       { to: '/liquidaciones', label: 'Liquidaciones', Icon: HandCoins },
       { to: '/actualizaciones', label: 'Actualizaciones', Icon: Calculator },
-      { to: '/indices', label: 'Índices', Icon: TrendingUp }
+      { to: '/indices', label: 'Índices', Icon: TrendingUp },
+      { to: '/contabilidad', label: 'Contabilidad', Icon: Landmark, adminOnly: true }
     ]
   },
   {
