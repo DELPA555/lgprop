@@ -112,6 +112,7 @@ export type IndiceValor = {
   created_at: string
 }
 
+export type EstadoAprobacion = 'pendiente' | 'aprobado' | 'rechazado'
 export type ActualizacionContrato = {
   id: string
   contrato_id: string
@@ -123,6 +124,11 @@ export type ActualizacionContrato = {
   confirmado_por_usuario: boolean
   confirmado_at: string | null
   confirmado_por: string | null
+  aprobacion_estado: EstadoAprobacion | null
+  aprobacion_token: string | null
+  aprobacion_token_expira: string | null
+  aprobacion_solicitada_at: string | null
+  aprobacion_respondido_at: string | null
   created_at: string
 }
 

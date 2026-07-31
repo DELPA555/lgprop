@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Aprobación de aumento · LG Prop</title>
+    <style>
+      :root {
+        --teal: #19b7a6;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #f3f4f6;
+        font-family: Arial, Helvetica, sans-serif;
+        color: #1f2937;
+      }
+      .wrap { max-width: 520px; margin: 40px auto; padding: 0 16px; }
+      .card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .head { background: #0a0d12; color: #fff; padding: 18px 22px; border-bottom: 3px solid var(--teal); }
+      .head b { font-size: 18px; }
+      .head span { display: block; color: #9ca3af; font-size: 12px; margin-top: 2px; }
+      .body { padding: 22px; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 6px 0 18px; }
+      td { padding: 5px 0; }
+      .muted { color: #6b7280; }
+      .right { text-align: right; }
+      .big { font-size: 17px; }
+      .pct { color: #059669; }
+      .btn {
+        display: inline-block;
+        border: 0;
+        border-radius: 9px;
+        padding: 13px 26px;
+        font-size: 15px;
+        font-weight: 700;
+        color: #fff;
+        cursor: pointer;
+      }
+      .ok { background: #059669; }
+      .no { background: #dc2626; }
+      .center { text-align: center; margin-top: 10px; }
+      .note { color: #9ca3af; font-size: 12px; margin-top: 16px; }
+      .msg { font-size: 16px; font-weight: 700; }
+      .spin { color: #6b7280; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="head">
+          <b>LG Prop</b><span>Aprobación de aumento de alquiler</span>
+        </div>
+        <div class="body" id="content">
+          <p class="spin">Cargando…</p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API = 'https://tvvmsuminnurcqtjvepm.supabase.co/functions/v1/aprobar-aumento'
+      const params = new URLSearchParams(location.search)
+      const token = params.get('token') || ''
+      const accion = params.get('accion') === 'rechazar' ? 'rechazar' : 'aprobar'
+      const content = document.getElementById('content')
+
+      const money = (n, moneda) => {
+        const v = (Math.round(Number(n) * 100) / 100).toFixed(2).split('.')
+        const grouped = v[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+        return (moneda === 'USD' ? 'US$ ' : '$ ') + grouped + ',' + v[1]
+      }
+      const esc = (s) =>
+        String(s == null ? '' : s).replace(/[&<>"]/g, (c) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])
+        )
+      const detalle = (d) => {
+        const pct =
+          d.montoAnterior > 0
+            ? (((d.montoNuevo - d.montoAnterior) / d.montoAnterior) * 100).toFixed(1)
+            : '0'
+        return (
+          '<table>' +
+          '<tr><td class="muted">Propiedad</td><td class="right"><b>' +
+          esc(d.propiedad) +
+          '</b></td></tr>' +
+          '<tr><td class="muted">Monto actual</td><td class="right">' +
+          money(d.montoAnterior, d.moneda) +
+          '</td></tr>' +
+          '<tr><td class="muted">Monto propuesto</td><td class="right big"><b>' +
+          money(d.montoNuevo, d.moneda) +
+          '</b> <span class="pct">(+' +
+          pct +
+          '%)</span></td></tr>' +
+          '</table>'
+        )
+      }
+
+      async function cargar() {
+        if (!token) {
+          content.innerHTML = '<p>El enlace no es válido.</p>'
+          return
+        }
+        try {
+          const r = await fetch(API + '?token=' + encodeURIComponent(token))
+          const d = await r.json()
+          if (!d.ok || d.valido === false) {
+            content.innerHTML =
+              (d.propiedad ? detalle(d) : '') + '<p>' + esc(d.error || 'El enlace no es válido.') + '</p>'
+            return
+          }
+          const esAprobar = accion === 'aprobar'
+          content.innerHTML =
+            detalle(d) +
+            '<p>Vas a <b>' +
+            (esAprobar ? 'APROBAR' : 'RECHAZAR') +
+            '</b> este aumento. Confirmá tu decisión:</p>' +
+            '<div class="center"><button id="btn" class="btn ' +
+            (esAprobar ? 'ok' : 'no') +
+            '">' +
+            (esAprobar ? 'Sí, aprobar' : 'Sí, rechazar') +
+            '</button></div>' +
+            '<p class="note">Si no fuiste vos, ignorá este mensaje. El enlace es de un solo uso.</p>'
+          document.getElementById('btn').addEventListener('click', () => responder(d))
+        } catch (e) {
+          content.innerHTML = '<p>No se pudo cargar la solicitud. Intentá de nuevo más tarde.</p>'
+        }
+      }
+
+      async function responder(d) {
+        const btn = document.getElementById('btn')
+        btn.disabled = true
+        btn.textContent = 'Enviando…'
+        try {
+          const r = await fetch(API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, accion })
+          })
+          const res = await r.json()
+          if (!res.ok) {
+            content.innerHTML = detalle(d) + '<p>' + esc(res.error || 'No se pudo registrar tu respuesta.') + '</p>'
+            return
+          }
+          const ok = res.estado === 'aprobado'
+          content.innerHTML =
+            detalle(d) +
+            '<p class="msg">' +
+            (ok ? '✅ Aprobaste el aumento.' : '❌ Rechazaste el aumento.') +
+            '</p><p class="muted">' +
+            (ok
+              ? 'La administración ya puede aplicarlo. ¡Gracias!'
+              : 'La administración no aplicará este aumento. Gracias por avisar.') +
+            '</p>'
+        } catch (e) {
+          content.innerHTML = '<p>No se pudo enviar tu respuesta. Intentá de nuevo.</p>'
+        }
+      }
+
+      cargar()
+    </script>
+  </body>
+</html>
