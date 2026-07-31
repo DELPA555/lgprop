@@ -359,6 +359,18 @@ export type Asamblea = {
   created_at: string
 }
 
+export type GastoLgprop = {
+  id: string
+  fecha: string
+  mes_correspondiente: string
+  concepto: string
+  categoria: string | null
+  monto: number
+  notas: string | null
+  creado_por: string | null
+  created_at: string
+}
+
 export type EstadoInteresado = 'interesado' | 'reservo' | 'descartado'
 export type Interesado = {
   id: string
@@ -458,6 +470,7 @@ export type Database = {
       tareas: TableDef<Tarea>
       interesados: TableDef<Interesado>
       visitas: TableDef<Visita>
+      gastos_lgprop: TableDef<GastoLgprop>
     }
     Views: Record<string, never>
     Functions: Record<string, never>

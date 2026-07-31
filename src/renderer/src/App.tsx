@@ -25,6 +25,7 @@ import ConsorcioDetalle from './pages/ConsorcioDetalle'
 import Tareas from './pages/Tareas'
 import Prospectos from './pages/Prospectos'
 import Agenda from './pages/Agenda'
+import Contabilidad from './pages/Contabilidad'
 
 function FullScreenConfig(): JSX.Element {
   return (
@@ -87,6 +88,10 @@ function AppRoutes(): JSX.Element {
         <Route path="/liquidaciones" element={<Liquidaciones />} />
         <Route path="/consorcios" element={<Consorcios />} />
         <Route path="/consorcios/:id" element={<ConsorcioDetalle />} />
+        <Route
+          path="/contabilidad"
+          element={isAdmin ? <Contabilidad /> : <Navigate to="/" replace />}
+        />
         <Route path="/equipo" element={isAdmin ? <Equipo /> : <Navigate to="/" replace />} />
         <Route path="/ajustes" element={isAdmin ? <Ajustes /> : <Navigate to="/" replace />} />
         <Route

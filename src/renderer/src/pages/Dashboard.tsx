@@ -15,6 +15,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import PageHeader from '@/components/PageHeader'
 import EstadoChip, { ChipTone } from '@/components/ui/EstadoChip'
 import { formatARS, formatUSD, formatMoneda, formatDate } from '@/lib/format'
+import { useAuth } from '@/context/AuthContext'
 import type { Moneda, EstadoPago } from '@/types/database'
 
 interface PagoRow {
@@ -42,6 +43,10 @@ interface Metrics {
   comisionAnio: number
   comisionMesUSD: number
   comisionAnioUSD: number
+  // Rentabilidad neta (solo admin): comisión ARS-equivalente − gastos propios
+  rentabilidadMes: number
+  rentabilidadAnio: number
+  gastosPropiosAnio: number
   pagosMes: PagoRow[]
 }
 
@@ -59,6 +64,7 @@ const ESTADO_CHIP: Record<EstadoPago, { tone: ChipTone; label: string }> = {
 }
 
 export default function Dashboard(): JSX.Element {
+  const { isAdmin } = useAuth()
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -179,10 +185,13 @@ export default function Dashboard(): JSX.Element {
       let comisionAnio = 0
       let comisionMesUSD = 0
       let comisionAnioUSD = 0
+      // Comisión ARS-equivalente (USD convertido) para la rentabilidad
+      let comAnioArs = 0
+      let comMesArs = 0
       try {
         const { data: comPagos } = await supabase
           .from('pagos')
-          .select('monto_comision, mes_correspondiente, contrato_id')
+          .select('monto_comision, cotizacion_usada, mes_correspondiente, contrato_id')
           .eq('estado', 'pagado')
           .gte('mes_correspondiente', yearStart)
         for (const p of comPagos ?? []) {
@@ -190,6 +199,9 @@ export default function Dashboard(): JSX.Element {
           const esUSD = monedaMap[p.contrato_id] === 'USD'
           const v = p.monto_comision ?? 0
           const delMes = p.mes_correspondiente === monthStartISO
+          const vArs = p.cotizacion_usada ? v * p.cotizacion_usada : v
+          comAnioArs += vArs
+          if (delMes) comMesArs += vArs
           if (esUSD) {
             comisionAnioUSD += v
             if (delMes) comisionMesUSD += v
@@ -200,6 +212,25 @@ export default function Dashboard(): JSX.Element {
         }
       } catch {
         // sin datos
+      }
+
+      // Gastos propios de LG Prop (solo admin; RLS bloquea al resto) → rentabilidad
+      let gastosPropiosAnio = 0
+      let gastosPropiosMes = 0
+      if (isAdmin) {
+        try {
+          const { data: gp } = await supabase
+            .from('gastos_lgprop')
+            .select('monto, mes_correspondiente')
+            .gte('mes_correspondiente', yearStart)
+          for (const g of gp ?? []) {
+            const v = Number(g.monto) || 0
+            gastosPropiosAnio += v
+            if (g.mes_correspondiente === monthStartISO) gastosPropiosMes += v
+          }
+        } catch {
+          // sin acceso / sin datos
+        }
       }
 
       if (!alive) return
@@ -216,6 +247,9 @@ export default function Dashboard(): JSX.Element {
         comisionAnio,
         comisionMesUSD,
         comisionAnioUSD,
+        rentabilidadMes: comMesArs - gastosPropiosMes,
+        rentabilidadAnio: comAnioArs - gastosPropiosAnio,
+        gastosPropiosAnio,
         pagosMes
       })
       setLoading(false)
@@ -223,7 +257,7 @@ export default function Dashboard(): JSX.Element {
     return () => {
       alive = false
     }
-  }, [])
+  }, [isAdmin])
 
   const alerts = useMemo(() => {
     const m = metrics
@@ -386,8 +420,35 @@ export default function Dashboard(): JSX.Element {
                 )}
               </div>
             </div>
-            <p className="text-[11px] text-ink-3 mt-5">
+            {isAdmin && (
+              <div className="mt-4 pt-4 border-t border-border/70 flex items-end justify-between gap-4">
+                <div>
+                  <div className="text-[11px] text-ink-2 uppercase tracking-wider">
+                    Rentabilidad neta · año
+                  </div>
+                  <div
+                    className={`num text-2xl font-bold mt-0.5 ${
+                      (metrics?.rentabilidadAnio ?? 0) >= 0 ? 'text-accent' : 'text-bad'
+                    }`}
+                  >
+                    {dash(formatARS(metrics?.rentabilidadAnio ?? 0))}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[11px] text-ink-3">este mes</div>
+                  <div
+                    className={`num text-sm font-semibold ${
+                      (metrics?.rentabilidadMes ?? 0) >= 0 ? 'text-ink-2' : 'text-bad'
+                    }`}
+                  >
+                    {dash(formatARS(metrics?.rentabilidadMes ?? 0))}
+                  </div>
+                </div>
+              </div>
+            )}
+            <p className="text-[11px] text-ink-3 mt-4">
               Comisión retenida de los pagos cobrados · USD a la cotización del día
+              {isAdmin ? ' · rentabilidad = comisión − gastos propios (Contabilidad)' : ''}
             </p>
           </div>
         </div>
