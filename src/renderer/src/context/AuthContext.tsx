@@ -1,13 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
-import type { UsuarioEquipo } from '@/types/database'
+import type { UsuarioEquipo, Socio } from '@/types/database'
 
 interface AuthCtx {
   session: Session | null
   member: UsuarioEquipo | null
+  socio: Socio | null
   loading: boolean
   isAdmin: boolean
+  isSocio: boolean
   signIn: (email: string, password: string) => Promise<{ error?: string }>
   signOut: () => Promise<void>
   refreshMember: () => Promise<void>
@@ -24,11 +26,13 @@ export function useAuth(): AuthCtx {
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
   const [session, setSession] = useState<Session | null>(null)
   const [member, setMember] = useState<UsuarioEquipo | null>(null)
+  const [socio, setSocio] = useState<Socio | null>(null)
   const [loading, setLoading] = useState(true)
 
   const fetchMember = useCallback(async (uid: string | undefined): Promise<void> => {
     if (!uid) {
       setMember(null)
+      setSocio(null)
       return
     }
     const { data } = await supabase
@@ -37,6 +41,18 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       .eq('auth_user_id', uid)
       .maybeSingle()
     setMember(data ?? null)
+    // ¿Este usuario es socio del negocio? (info financiera privada entre dueños)
+    if (data?.id) {
+      const { data: s } = await supabase
+        .from('socios')
+        .select('*')
+        .eq('usuario_equipo_id', data.id)
+        .eq('activo', true)
+        .maybeSingle()
+      setSocio(s ?? null)
+    } else {
+      setSocio(null)
+    }
   }, [])
 
   useEffect(() => {
@@ -68,13 +84,16 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   const signOut = useCallback(async (): Promise<void> => {
     await supabase.auth.signOut()
     setMember(null)
+    setSocio(null)
   }, [])
 
   const value: AuthCtx = {
     session,
     member,
+    socio,
     loading,
     isAdmin: member?.rol === 'admin' && member?.activo === true,
+    isSocio: !!socio && member?.activo === true,
     signIn,
     signOut,
     refreshMember: () => fetchMember(session?.user?.id)
