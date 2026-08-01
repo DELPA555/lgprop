@@ -9,7 +9,8 @@ import {
   FileText,
   Wallet,
   ArrowRight,
-  CalendarDays
+  CalendarDays,
+  HandCoins
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
@@ -79,6 +80,8 @@ interface Metrics {
   gastosPropiosAnio: number
   pagosMes: PagoRow[]
   agenda: AgendaItem[]
+  honorariosPendientes: number
+  honorariosPendientesMonto: number
 }
 
 function addDaysISO(days: number): string {
@@ -95,7 +98,7 @@ const ESTADO_CHIP: Record<EstadoPago, { tone: ChipTone; label: string }> = {
 }
 
 export default function Dashboard(): JSX.Element {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isSocio } = useAuth()
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -304,6 +307,30 @@ export default function Dashboard(): JSX.Element {
         // sin datos
       }
 
+      // ── Honorarios por operación pendientes de cobro (solo socios) ──
+      let honorariosPendientes = 0
+      let honorariosPendientesMonto = 0
+      if (isSocio) {
+        try {
+          const [{ data: hon }, { data: cot }] = await Promise.all([
+            supabase.from('honorarios_operacion').select('monto, moneda').eq('estado', 'pendiente'),
+            supabase
+              .from('cotizaciones_dolar')
+              .select('tipo, venta')
+              .order('fecha', { ascending: false })
+              .limit(10)
+          ])
+          const blue = (cot ?? []).find((c) => c.tipo === 'blue') ?? (cot ?? [])[0]
+          const rate = blue?.venta ?? 1
+          for (const h of hon ?? []) {
+            honorariosPendientes++
+            honorariosPendientesMonto += h.moneda === 'USD' ? h.monto * rate : h.monto
+          }
+        } catch {
+          // sin acceso / sin datos
+        }
+      }
+
       if (!alive) return
       setMetrics({
         vencimientos,
@@ -322,14 +349,16 @@ export default function Dashboard(): JSX.Element {
         rentabilidadAnio: comAnioArs - gastosPropiosAnio,
         gastosPropiosAnio,
         pagosMes,
-        agenda
+        agenda,
+        honorariosPendientes,
+        honorariosPendientesMonto
       })
       setLoading(false)
     })()
     return () => {
       alive = false
     }
-  }, [isAdmin])
+  }, [isAdmin, isSocio])
 
   const alerts = useMemo(() => {
     const m = metrics
@@ -431,7 +460,7 @@ export default function Dashboard(): JSX.Element {
       )}
 
       {/* ── Franja de alertas ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${isSocio ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
         {alerts.map(({ key, to, Icon, n, label, tone }) => {
           const activo = n > 0
           const t: ChipTone = activo ? tone : 'muted'
@@ -451,6 +480,36 @@ export default function Dashboard(): JSX.Element {
             </Link>
           )
         })}
+        {isSocio && (
+          <Link
+            to="/sociedad"
+            className={`card p-4 flex items-center gap-4 border ${
+              (metrics?.honorariosPendientes ?? 0) > 0 ? toneBg.info : toneBg.muted
+            } hover:brightness-110 transition`}
+          >
+            <div
+              className={`shrink-0 ${
+                (metrics?.honorariosPendientes ?? 0) > 0 ? toneText.info : toneText.muted
+              }`}
+            >
+              <HandCoins size={22} strokeWidth={2} />
+            </div>
+            <div className="min-w-0">
+              <div
+                className={`num text-2xl font-bold leading-none ${
+                  (metrics?.honorariosPendientes ?? 0) > 0 ? toneText.info : toneText.muted
+                }`}
+              >
+                {dash(metrics?.honorariosPendientes ?? 0)}
+              </div>
+              <div className="text-xs text-ink-2 mt-1 leading-tight">
+                Honorarios por cobrar
+                {(metrics?.honorariosPendientes ?? 0) > 0 &&
+                  ` · ${formatARS(metrics?.honorariosPendientesMonto ?? 0)}`}
+              </div>
+            </div>
+          </Link>
+        )}
       </div>
 
       {/* ── Hero de comisión + tiles ──────────────────────────────────── */}

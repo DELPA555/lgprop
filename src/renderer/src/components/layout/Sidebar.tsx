@@ -21,7 +21,8 @@ import {
   Contact,
   CalendarDays,
   CalendarCheck,
-  Landmark
+  Landmark,
+  Handshake
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
@@ -31,6 +32,7 @@ type NavItem = {
   Icon: typeof LayoutDashboard
   end?: boolean
   adminOnly?: boolean
+  socioOnly?: boolean
 }
 type NavGroup = { title: string | null; items: NavItem[] }
 
@@ -60,7 +62,8 @@ const GROUPS: NavGroup[] = [
       { to: '/liquidaciones', label: 'Liquidaciones', Icon: HandCoins },
       { to: '/actualizaciones', label: 'Actualizaciones', Icon: Calculator },
       { to: '/indices', label: 'Índices', Icon: TrendingUp },
-      { to: '/contabilidad', label: 'Contabilidad', Icon: Landmark, adminOnly: true }
+      { to: '/contabilidad', label: 'Contabilidad', Icon: Landmark, adminOnly: true },
+      { to: '/sociedad', label: 'Sociedad', Icon: Handshake, socioOnly: true }
     ]
   },
   {
@@ -78,7 +81,7 @@ const GROUPS: NavGroup[] = [
 ]
 
 export default function Sidebar(): JSX.Element {
-  const { member, isAdmin, signOut } = useAuth()
+  const { member, isAdmin, isSocio, signOut } = useAuth()
   const [version, setVersion] = useState('')
   useEffect(() => {
     window.lgprop
@@ -89,7 +92,7 @@ export default function Sidebar(): JSX.Element {
 
   const groups = GROUPS.map((g) => ({
     ...g,
-    items: g.items.filter((i) => !i.adminOnly || isAdmin)
+    items: g.items.filter((i) => (!i.adminOnly || isAdmin) && (!i.socioOnly || isSocio))
   })).filter((g) => g.items.length > 0)
 
   return (

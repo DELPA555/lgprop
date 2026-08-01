@@ -378,6 +378,68 @@ export type GastoLgprop = {
   created_at: string
 }
 
+// ── Sociedad / Socios ─────────────────────────────────────────────────────
+export type Socio = {
+  id: string
+  nombre: string
+  email: string | null
+  porcentaje_participacion: number
+  usuario_equipo_id: string | null
+  activo: boolean
+  created_at: string
+}
+
+export type CategoriaGastoSociedad =
+  | 'alquiler_oficina'
+  | 'sueldos'
+  | 'herramientas'
+  | 'marketing'
+  | 'otro'
+export type GastoSociedad = {
+  id: string
+  socio_id: string
+  concepto: string
+  monto: number
+  fecha: string
+  categoria: CategoriaGastoSociedad
+  notas: string | null
+  created_at: string
+}
+
+export type EstadoHonorario = 'pendiente' | 'cobrado'
+export type HonorarioOperacion = {
+  id: string
+  contrato_id: string
+  monto: number
+  moneda: Moneda
+  fecha_cobro: string | null
+  estado: EstadoHonorario
+  notas: string | null
+  created_at: string
+}
+
+export type EstadoLiquidacionSocios = 'pendiente' | 'pagado'
+export type LiquidacionSocios = {
+  id: string
+  periodo: string // YYYY-MM-01
+  comision_total: number
+  honorarios_total: number
+  ingresos_total: number
+  gastos_total: number
+  detalle_json: Record<string, unknown> | null
+  deudor_socio_id: string | null
+  acreedor_socio_id: string | null
+  monto_deuda: number
+  estado_pago: EstadoLiquidacionSocios
+  pago_confirmado_por: string | null
+  pago_confirmado_at: string | null
+  periodo_cerrado: boolean
+  cerrado_por: string | null
+  cerrado_at: string | null
+  notas: string | null
+  created_at: string
+}
+
 export type EstadoInteresado = 'interesado' | 'reservo' | 'descartado'
 export type Interesado = {
   id: string
@@ -496,6 +558,10 @@ export type Database = {
       interesados: TableDef<Interesado>
       visitas: TableDef<Visita>
       eventos_agenda: TableDef<EventoAgenda>
+      socios: TableDef<Socio>
+      gastos_sociedad: TableDef<GastoSociedad>
+      honorarios_operacion: TableDef<HonorarioOperacion>
+      liquidaciones_socios: TableDef<LiquidacionSocios>
       gastos_lgprop: TableDef<GastoLgprop>
     }
     Views: Record<string, never>
@@ -513,6 +579,9 @@ export type Database = {
       tipo_seguro: TipoSeguro
       rol_usuario: RolUsuario
       tipo_notificacion: TipoNotificacion
+      categoria_gasto_sociedad: CategoriaGastoSociedad
+      estado_honorario: EstadoHonorario
+      estado_liquidacion_socios: EstadoLiquidacionSocios
     }
     CompositeTypes: Record<string, never>
   }

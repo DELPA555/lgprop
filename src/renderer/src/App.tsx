@@ -27,6 +27,7 @@ import Prospectos from './pages/Prospectos'
 import Agenda from './pages/Agenda'
 import Visitas from './pages/Visitas'
 import Contabilidad from './pages/Contabilidad'
+import Sociedad from './pages/Sociedad'
 
 function FullScreenConfig(): JSX.Element {
   return (
@@ -69,7 +70,7 @@ function SinAcceso(): JSX.Element {
 }
 
 function AppRoutes(): JSX.Element {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isSocio } = useAuth()
   return (
     <Layout>
       <Routes>
@@ -94,6 +95,7 @@ function AppRoutes(): JSX.Element {
           path="/contabilidad"
           element={isAdmin ? <Contabilidad /> : <Navigate to="/" replace />}
         />
+        <Route path="/sociedad" element={isSocio ? <Sociedad /> : <Navigate to="/" replace />} />
         <Route path="/equipo" element={isAdmin ? <Equipo /> : <Navigate to="/" replace />} />
         <Route path="/ajustes" element={isAdmin ? <Ajustes /> : <Navigate to="/" replace />} />
         <Route
