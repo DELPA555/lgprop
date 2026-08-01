@@ -11,7 +11,9 @@ import {
   Users,
   FileText,
   Landmark,
-  UserCheck
+  UserCheck,
+  CalendarDays,
+  User
 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type {
@@ -23,7 +25,8 @@ import type {
   Contrato,
   Inquilino,
   EstadoContrato,
-  ContratoArchivo
+  ContratoArchivo,
+  EventoAgenda
 } from '@/types/database'
 import { listarArchivosPorContratos } from '@/lib/contratoArchivos'
 import ArchivoPreviewModal from '@/components/ArchivoPreviewModal'
@@ -44,6 +47,23 @@ const ESTADO_CONTRATO_BADGE: Record<EstadoContrato, string> = {
   rescindido: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
 }
 
+const EVENTO_TIPO_LABEL: Record<string, string> = {
+  tasacion: 'Tasación',
+  posible_ingreso: 'Posible ingreso',
+  reunion: 'Reunión',
+  visita: 'Visita',
+  otro: 'Otro'
+}
+const eventoTipoLabel = (t: string): string => EVENTO_TIPO_LABEL[t] ?? t
+const fmtFechaHora = (iso: string): string =>
+  new Date(iso).toLocaleString('es-AR', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Argentina/Buenos_Aires'
+  })
+
 export default function PropiedadDetalle(): JSX.Element {
   const { id = '' } = useParams()
   const navigate = useNavigate()
@@ -53,6 +73,7 @@ export default function PropiedadDetalle(): JSX.Element {
   const [reclamos, setReclamos] = useState<Mantenimiento[]>([])
   const [seguros, setSeguros] = useState<SeguroPropiedad[]>([])
   const [contratos, setContratos] = useState<Contrato[]>([])
+  const [eventos, setEventos] = useState<EventoAgenda[]>([])
   const [pendientesSet, setPendientesSet] = useState<Set<string>>(new Set())
   const [inqMap, setInqMap] = useState<Record<string, string>>({})
   // Datos completos del inquilino (para el garante del contrato activo)
@@ -167,6 +188,17 @@ export default function PropiedadDetalle(): JSX.Element {
     setArchivosPorContrato(
       await listarArchivosPorContratos((ctr ?? []).map((c) => c.id))
     )
+    // Próximos eventos de agenda vinculados a esta propiedad (no cancelados, de hoy en adelante)
+    const desde = new Date()
+    desde.setHours(0, 0, 0, 0)
+    const { data: evs } = await supabase
+      .from('eventos_agenda')
+      .select('*')
+      .eq('propiedad_id', id)
+      .neq('estado', 'cancelado')
+      .gte('fecha_hora', desde.toISOString())
+      .order('fecha_hora')
+    setEventos(evs ?? [])
     setLoading(false)
   }
 
@@ -645,6 +677,55 @@ export default function PropiedadDetalle(): JSX.Element {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Próximos eventos de agenda */}
+          <div className="flex items-center justify-between mb-3 mt-6">
+            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+              <CalendarDays size={16} className="text-zinc-400" /> Próximos eventos
+            </h2>
+            <button
+              onClick={() => navigate('/agenda')}
+              className="text-xs text-accent hover:text-accent-soft"
+            >
+              Ver agenda
+            </button>
+          </div>
+
+          <div className="card overflow-hidden">
+            {eventos.length === 0 ? (
+              <p className="px-4 py-8 text-center text-sm text-zinc-600">
+                No hay eventos próximos para esta propiedad. Agendalos desde la Agenda.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border/60">
+                {eventos.map((e) => (
+                  <li key={e.id} className="px-4 py-3 flex items-start gap-3">
+                    <div className="text-[11px] text-zinc-400 num whitespace-nowrap pt-0.5 w-24 shrink-0">
+                      {fmtFechaHora(e.fecha_hora)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-zinc-100 truncate">{e.titulo}</span>
+                        <EstadoChip tone="info">{eventoTipoLabel(e.tipo)}</EstadoChip>
+                      </div>
+                      {e.descripcion && (
+                        <p className="text-[12px] text-zinc-500 mt-0.5 line-clamp-2">{e.descripcion}</p>
+                      )}
+                      {(e.contacto_nombre || e.contacto_telefono) && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 mt-1">
+                          <User size={11} />
+                          {e.contacto_nombre || 'Contacto'}
+                          {e.contacto_telefono && (
+                            <TelefonoWhatsApp numero={e.contacto_telefono} size={13} />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </>
       )}

@@ -40,6 +40,7 @@ type Tipo =
   | 'expensa_impaga'
   | 'reclamo_sin_resolver'
   | 'visita_proxima'
+  | 'evento_proximo'
 
 interface NuevaNotif {
   tipo: Tipo
@@ -107,6 +108,19 @@ Deno.serve(async () => {
   }
   const corteLiquidacionDia = await cfgInt('consorcios_corte_liquidacion_dia', 10)
   const reclamoDiasAlerta = await cfgInt('consorcios_reclamo_dias_alerta', 15)
+
+  // Anticipación (en días) para los recordatorios de la Agenda. Default 1 = hoy y
+  // mañana. Admite 0 (solo hoy), por eso no se usa cfgInt (que exige > 0).
+  let eventosDiasAntic = 1
+  {
+    const { data } = await supabase
+      .from('configuracion')
+      .select('valor')
+      .eq('clave', 'avisos_eventos_dias_anticipacion')
+      .maybeSingle()
+    const n = parseInt(data?.valor ?? '', 10)
+    if (Number.isFinite(n) && n >= 0) eventosDiasAntic = n
+  }
 
   // Nota: solo se avisa por propiedades ADMINISTRADAS por LG Prop. Las cargadas
   // como referencia (administrada = false) no generan avisos de ningún tipo.
@@ -348,6 +362,35 @@ Deno.serve(async () => {
     }
   }
 
+  // 11) Agenda general: eventos pendientes de hoy hasta N días (recordatorio)
+  {
+    const desdeEvt = HOY + 'T00:00:00.000Z'
+    const hastaEvt = enDias(eventosDiasAntic) + 'T23:59:59.999Z'
+    const { data } = await supabase
+      .from('eventos_agenda')
+      .select('id, titulo, tipo, fecha_hora, contacto_nombre, propiedades(direccion)')
+      .eq('estado', 'pendiente')
+      .gte('fecha_hora', desdeEvt)
+      .lte('fecha_hora', hastaEvt)
+    for (const e of data ?? []) {
+      const dir = (e as any)?.propiedades?.direccion as string | undefined
+      const contacto = (e as any).contacto_nombre as string | undefined
+      const cuando = new Date(e.fecha_hora).toLocaleString('es-AR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+        timeZone: 'America/Argentina/Buenos_Aires'
+      })
+      const dondeCon = dir ? ` en ${dir}` : contacto ? ` con ${contacto}` : ''
+      pendientes.push({
+        tipo: 'evento_proximo',
+        contrato_id: null,
+        metadata: { ref: `evento|${e.id}` },
+        titulo: `Evento agendado — ${e.titulo}`,
+        mensaje: `Tenés "${e.titulo}"${dondeCon} agendado para el ${cuando}. Revisalo en la Agenda.`
+      })
+    }
+  }
+
   // Dedup contra notificaciones recientes sin leer
   const { data: recientes } = await supabase
     .from('notificaciones')
@@ -378,7 +421,8 @@ Deno.serve(async () => {
       expensas_liquidacion_pendiente: [],
       expensa_impaga: [],
       reclamo_sin_resolver: [],
-      visita_proxima: []
+      visita_proxima: [],
+      evento_proximo: []
     }
     for (const n of aInsertar) grupos[n.tipo].push(n)
 
@@ -392,7 +436,8 @@ Deno.serve(async () => {
       expensas_liquidacion_pendiente: 'Consorcios · liquidaciones por generar',
       expensa_impaga: 'Consorcios · expensas impagas',
       reclamo_sin_resolver: 'Consorcios · reclamos sin resolver',
-      visita_proxima: 'Agenda · visitas próximas'
+      visita_proxima: 'Agenda · visitas próximas',
+      evento_proximo: 'Agenda · eventos próximos'
     }
 
     const secciones = (Object.keys(grupos) as Tipo[])
