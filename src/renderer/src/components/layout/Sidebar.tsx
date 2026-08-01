@@ -20,6 +20,7 @@ import {
   CheckSquare,
   Contact,
   CalendarDays,
+  CalendarCheck,
   Landmark
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
@@ -47,6 +48,7 @@ const GROUPS: NavGroup[] = [
       { to: '/contratos', label: 'Contratos', Icon: FileText },
       { to: '/mantenimiento', label: 'Mantenimiento', Icon: Wrench },
       { to: '/prospectos', label: 'Prospectos', Icon: Contact },
+      { to: '/visitas', label: 'Visitas', Icon: CalendarCheck },
       { to: '/agenda', label: 'Agenda', Icon: CalendarDays },
       { to: '/tareas', label: 'Tareas', Icon: CheckSquare }
     ]

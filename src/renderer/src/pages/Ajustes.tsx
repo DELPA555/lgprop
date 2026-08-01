@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Save, Loader2, BellRing, DollarSign, Database, Download, RefreshCw, Building } from 'lucide-react'
+import { Save, Loader2, BellRing, DollarSign, Database, Download, RefreshCw, Building, CalendarDays } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
@@ -11,6 +11,7 @@ const CLAVE_DIAS = 'avisos_dias_anticipacion_contrato'
 const CLAVE_COTIZ = 'cotizacion_pagos_tipo'
 const CLAVE_CORTE = 'consorcios_corte_liquidacion_dia'
 const CLAVE_RECLAMO = 'consorcios_reclamo_dias_alerta'
+const CLAVE_EVENTOS = 'avisos_eventos_dias_anticipacion'
 const PRESETS = [30, 60, 90]
 const TIPOS_COTIZ = [
   { id: 'blue', label: 'Blue' },
@@ -30,6 +31,8 @@ export default function Ajustes(): JSX.Element {
   const [savingCotiz, setSavingCotiz] = useState(false)
   const [corteDia, setCorteDia] = useState<number>(10)
   const [reclamoDias, setReclamoDias] = useState<number>(15)
+  const [eventosDias, setEventosDias] = useState<number>(1)
+  const [savingEventos, setSavingEventos] = useState(false)
   const [savingConsorcio, setSavingConsorcio] = useState(false)
   const [backups, setBackups] = useState<{ name: string; size: number | null }[]>([])
   const [genBackup, setGenBackup] = useState(false)
@@ -72,12 +75,16 @@ export default function Ajustes(): JSX.Element {
       const { data } = await supabase
         .from('configuracion')
         .select('clave, valor')
-        .in('clave', [CLAVE_DIAS, CLAVE_COTIZ, CLAVE_CORTE, CLAVE_RECLAMO])
+        .in('clave', [CLAVE_DIAS, CLAVE_COTIZ, CLAVE_CORTE, CLAVE_RECLAMO, CLAVE_EVENTOS])
       for (const row of data ?? []) {
         if (row.clave === CLAVE_DIAS && row.valor) setDias(parseInt(row.valor, 10) || 60)
         if (row.clave === CLAVE_COTIZ && row.valor) setCotizTipo(row.valor)
         if (row.clave === CLAVE_CORTE && row.valor) setCorteDia(parseInt(row.valor, 10) || 10)
         if (row.clave === CLAVE_RECLAMO && row.valor) setReclamoDias(parseInt(row.valor, 10) || 15)
+        if (row.clave === CLAVE_EVENTOS && row.valor != null) {
+          const n = parseInt(row.valor, 10)
+          if (Number.isFinite(n) && n >= 0) setEventosDias(n)
+        }
       }
       // Últimas cotizaciones (una por tipo) para mostrar de referencia
       const { data: cot } = await supabase
@@ -108,6 +115,21 @@ export default function Ajustes(): JSX.Element {
     setSavingConsorcio(false)
     if (error) return void toast.error(error.message)
     toast.success('Configuración de consorcios guardada')
+  }
+
+  const saveEventos = async (): Promise<void> => {
+    if (eventosDias < 0 || eventosDias > 30)
+      return toast.error('Ingresá un número de días entre 0 y 30')
+    setSavingEventos(true)
+    const { error } = await supabase
+      .from('configuracion')
+      .upsert(
+        { clave: CLAVE_EVENTOS, valor: String(eventosDias), updated_at: new Date().toISOString() },
+        { onConflict: 'clave' }
+      )
+    setSavingEventos(false)
+    if (error) return void toast.error(error.message)
+    toast.success('Recordatorios de agenda configurados')
   }
 
   const saveCotiz = async (): Promise<void> => {
@@ -200,6 +222,60 @@ export default function Ajustes(): JSX.Element {
                 Aplica en el motor de avisos diario (contratos y seguros por vencer).
               </span>
             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="card p-5 max-w-xl mt-5">
+        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <CalendarDays size={16} className="text-zinc-400" /> Recordatorios de agenda
+        </h2>
+        <p className="text-sm text-zinc-400 mt-1.5">
+          ¿Con cuánta anticipación querés recibir el recordatorio (dashboard + email) de los{' '}
+          <span className="text-zinc-200">eventos de la agenda</span>?
+        </p>
+        {!loading && (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              {[
+                { n: 0, label: 'Solo el día' },
+                { n: 1, label: 'Hoy y mañana' },
+                { n: 2, label: 'Hasta 2 días' },
+                { n: 3, label: 'Hasta 3 días' }
+              ].map((p) => (
+                <button
+                  key={p.n}
+                  onClick={() => setEventosDias(p.n)}
+                  className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
+                    eventosDias === p.n
+                      ? 'bg-accent text-[#04110f] font-medium border-accent'
+                      : 'border-border text-ink-2 hover:text-ink hover:bg-white/5'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <span className="text-zinc-600 text-xs">o</span>
+              <div className="w-36">
+                <Field label="Personalizado (días)">
+                  <TextInput
+                    type="number"
+                    min={0}
+                    max={30}
+                    value={eventosDias}
+                    onChange={(e) => setEventosDias(Number(e.target.value))}
+                  />
+                </Field>
+              </div>
+            </div>
+            <button
+              onClick={saveEventos}
+              disabled={savingEventos}
+              className="btn-primary text-sm flex items-center gap-2"
+            >
+              {savingEventos ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              Guardar
+            </button>
           </div>
         )}
       </div>

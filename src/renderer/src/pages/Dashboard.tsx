@@ -8,7 +8,8 @@ import {
   Building2,
   FileText,
   Wallet,
-  ArrowRight
+  ArrowRight,
+  CalendarDays
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
@@ -30,6 +31,35 @@ interface PagoRow {
   etiqueta: string
 }
 
+interface AgendaItem {
+  id: string
+  kind: 'evento' | 'visita'
+  titulo: string
+  fecha_hora: string
+  tipo?: string
+  extra?: string
+}
+
+const EVENTO_TIPO_LABEL: Record<string, string> = {
+  tasacion: 'Tasación',
+  posible_ingreso: 'Posible ingreso',
+  reunion: 'Reunión',
+  visita: 'Visita',
+  otro: 'Otro'
+}
+const fmtAgendaFecha = (iso: string): string => {
+  const hoy = new Date().toISOString().slice(0, 10)
+  const man = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+  const dia = iso.slice(0, 10)
+  const prefijo = dia === hoy ? 'Hoy' : dia === man ? 'Mañana' : ''
+  const h = new Date(iso).toLocaleTimeString('es-AR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Argentina/Buenos_Aires'
+  })
+  return prefijo ? `${prefijo} ${h}` : `${new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', timeZone: 'America/Argentina/Buenos_Aires' })} ${h}`
+}
+
 interface Metrics {
   vencimientos: number
   actualizaciones: number
@@ -48,6 +78,7 @@ interface Metrics {
   rentabilidadAnio: number
   gastosPropiosAnio: number
   pagosMes: PagoRow[]
+  agenda: AgendaItem[]
 }
 
 function addDaysISO(days: number): string {
@@ -233,6 +264,46 @@ export default function Dashboard(): JSX.Element {
         }
       }
 
+      // ── Agenda de hoy / mañana (eventos + visitas) ──
+      let agenda: AgendaItem[] = []
+      try {
+        const desde = `${hoy}T00:00:00.000Z`
+        const hasta = `${addDaysISO(1)}T23:59:59.999Z`
+        const [{ data: evs }, { data: vis }] = await Promise.all([
+          supabase
+            .from('eventos_agenda')
+            .select('id, titulo, tipo, fecha_hora, propiedad_id, contacto_nombre')
+            .eq('estado', 'pendiente')
+            .gte('fecha_hora', desde)
+            .lte('fecha_hora', hasta),
+          supabase
+            .from('visitas')
+            .select('id, fecha, visitante, propiedad_id')
+            .eq('estado', 'programada')
+            .gte('fecha', desde)
+            .lte('fecha', hasta)
+        ])
+        const evItems: AgendaItem[] = (evs ?? []).map((e) => ({
+          id: `ev-${e.id}`,
+          kind: 'evento',
+          titulo: e.titulo,
+          fecha_hora: e.fecha_hora,
+          tipo: e.tipo,
+          extra: e.propiedad_id ? dirMap[e.propiedad_id] : (e.contacto_nombre ?? undefined)
+        }))
+        const viItems: AgendaItem[] = (vis ?? []).map((v) => ({
+          id: `vi-${v.id}`,
+          kind: 'visita',
+          titulo: v.propiedad_id ? (dirMap[v.propiedad_id] ?? 'Visita') : (v.visitante ?? 'Visita'),
+          fecha_hora: v.fecha
+        }))
+        agenda = [...evItems, ...viItems]
+          .sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime())
+          .slice(0, 6)
+      } catch {
+        // sin datos
+      }
+
       if (!alive) return
       setMetrics({
         vencimientos,
@@ -250,7 +321,8 @@ export default function Dashboard(): JSX.Element {
         rentabilidadMes: comMesArs - gastosPropiosMes,
         rentabilidadAnio: comAnioArs - gastosPropiosAnio,
         gastosPropiosAnio,
-        pagosMes
+        pagosMes,
+        agenda
       })
       setLoading(false)
     })()
@@ -468,6 +540,47 @@ export default function Dashboard(): JSX.Element {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── Agenda de hoy / mañana ────────────────────────────────────── */}
+      <div className="card mt-4 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+            <CalendarDays size={15} className="text-ink-3" /> Agenda de hoy y mañana
+          </h2>
+          <Link
+            to="/agenda"
+            className="text-xs text-accent hover:text-accent-soft flex items-center gap-1"
+          >
+            Ver agenda <ArrowRight size={13} />
+          </Link>
+        </div>
+        {loading ? (
+          <p className="px-4 py-8 text-center text-ink-3 text-sm">Cargando…</p>
+        ) : (metrics?.agenda.length ?? 0) === 0 ? (
+          <p className="px-4 py-8 text-center text-ink-3 text-sm">
+            No hay eventos ni visitas para hoy o mañana.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border/60">
+            {metrics?.agenda.map((it) => (
+              <li key={it.id} className="px-4 py-2.5 flex items-center gap-3">
+                <span className="text-[11px] text-ink-2 num w-24 shrink-0">
+                  {fmtAgendaFecha(it.fecha_hora)}
+                </span>
+                <span className="text-sm text-ink truncate flex-1">{it.titulo}</span>
+                {it.extra && (
+                  <span className="text-[11px] text-ink-3 hidden sm:block truncate max-w-[40%]">
+                    {it.extra}
+                  </span>
+                )}
+                <EstadoChip tone={it.kind === 'visita' ? 'muted' : 'info'}>
+                  {it.kind === 'visita' ? 'Visita' : EVENTO_TIPO_LABEL[it.tipo ?? 'otro'] ?? 'Evento'}
+                </EstadoChip>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* ── Pagos del mes ─────────────────────────────────────────────── */}

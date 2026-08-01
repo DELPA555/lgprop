@@ -35,6 +35,7 @@ export type TipoNotificacion =
   | 'expensa_impaga'
   | 'reclamo_sin_resolver'
   | 'visita_proxima'
+  | 'evento_proximo'
 
 export type Dueno = {
   id: string
@@ -407,6 +408,24 @@ export type Visita = {
   created_at: string
 }
 
+// ── Agenda general del negocio ───────────────────────────────────────────
+// `tipo` es texto libre (extensible); la UI sugiere los valores usuales.
+export type EstadoEvento = 'pendiente' | 'realizado' | 'cancelado'
+export type EventoAgenda = {
+  id: string
+  titulo: string
+  descripcion: string | null
+  fecha_hora: string
+  tipo: string
+  propiedad_id: string | null
+  contacto_nombre: string | null
+  contacto_telefono: string | null
+  creado_por: string | null
+  estado: EstadoEvento
+  recordatorio_enviado: boolean
+  created_at: string
+}
+
 export type PrioridadTarea = 'baja' | 'normal' | 'alta'
 export type Tarea = {
   id: string
@@ -476,6 +495,7 @@ export type Database = {
       tareas: TableDef<Tarea>
       interesados: TableDef<Interesado>
       visitas: TableDef<Visita>
+      eventos_agenda: TableDef<EventoAgenda>
       gastos_lgprop: TableDef<GastoLgprop>
     }
     Views: Record<string, never>
