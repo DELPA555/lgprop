@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react'
-import { Save, Loader2, BellRing, DollarSign, Database, Download, RefreshCw, Building, CalendarDays } from 'lucide-react'
+import { Save, Loader2, BellRing, DollarSign, Database, Download, RefreshCw, Building, CalendarDays, ReceiptText } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
-import { Field, TextInput, Select } from '@/components/ui/Field'
+import { Field, TextInput, TextArea, Select } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate } from '@/lib/format'
+import {
+  CLAUSULA_LOCACION_DEFAULT,
+  CLAUSULA_VENTA_DEFAULT,
+  CIUDAD_DEFAULT,
+  REGISTRO_DEFAULT,
+  CLAVE_CLAUSULA_LOCACION,
+  CLAVE_CLAUSULA_VENTA,
+  CLAVE_CIUDAD,
+  CLAVE_REGISTRO
+} from '@/lib/recibosReservaDefaults'
 
 const CLAVE_DIAS = 'avisos_dias_anticipacion_contrato'
 const CLAVE_COTIZ = 'cotizacion_pagos_tipo'
@@ -36,6 +46,11 @@ export default function Ajustes(): JSX.Element {
   const [savingConsorcio, setSavingConsorcio] = useState(false)
   const [backups, setBackups] = useState<{ name: string; size: number | null }[]>([])
   const [genBackup, setGenBackup] = useState(false)
+  const [recLoc, setRecLoc] = useState(CLAUSULA_LOCACION_DEFAULT)
+  const [recVenta, setRecVenta] = useState(CLAUSULA_VENTA_DEFAULT)
+  const [recCiudad, setRecCiudad] = useState(CIUDAD_DEFAULT)
+  const [recRegistro, setRecRegistro] = useState(REGISTRO_DEFAULT)
+  const [savingRecibo, setSavingRecibo] = useState(false)
 
   const loadBackups = async (): Promise<void> => {
     const { data } = await supabase.storage
@@ -75,7 +90,17 @@ export default function Ajustes(): JSX.Element {
       const { data } = await supabase
         .from('configuracion')
         .select('clave, valor')
-        .in('clave', [CLAVE_DIAS, CLAVE_COTIZ, CLAVE_CORTE, CLAVE_RECLAMO, CLAVE_EVENTOS])
+        .in('clave', [
+          CLAVE_DIAS,
+          CLAVE_COTIZ,
+          CLAVE_CORTE,
+          CLAVE_RECLAMO,
+          CLAVE_EVENTOS,
+          CLAVE_CLAUSULA_LOCACION,
+          CLAVE_CLAUSULA_VENTA,
+          CLAVE_CIUDAD,
+          CLAVE_REGISTRO
+        ])
       for (const row of data ?? []) {
         if (row.clave === CLAVE_DIAS && row.valor) setDias(parseInt(row.valor, 10) || 60)
         if (row.clave === CLAVE_COTIZ && row.valor) setCotizTipo(row.valor)
@@ -85,6 +110,10 @@ export default function Ajustes(): JSX.Element {
           const n = parseInt(row.valor, 10)
           if (Number.isFinite(n) && n >= 0) setEventosDias(n)
         }
+        if (row.clave === CLAVE_CLAUSULA_LOCACION && row.valor) setRecLoc(row.valor)
+        if (row.clave === CLAVE_CLAUSULA_VENTA && row.valor) setRecVenta(row.valor)
+        if (row.clave === CLAVE_CIUDAD && row.valor) setRecCiudad(row.valor)
+        if (row.clave === CLAVE_REGISTRO && row.valor) setRecRegistro(row.valor)
       }
       // Últimas cotizaciones (una por tipo) para mostrar de referencia
       const { data: cot } = await supabase
@@ -143,6 +172,26 @@ export default function Ajustes(): JSX.Element {
     setSavingCotiz(false)
     if (error) return void toast.error(error.message)
     toast.success('Cotización configurada')
+  }
+
+  const saveRecibo = async (): Promise<void> => {
+    if (!recLoc.trim() || !recVenta.trim())
+      return toast.error('Las cláusulas no pueden quedar vacías')
+    if (!recCiudad.trim()) return toast.error('Ingresá la ciudad')
+    setSavingRecibo(true)
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('configuracion').upsert(
+      [
+        { clave: CLAVE_CLAUSULA_LOCACION, valor: recLoc, updated_at: now },
+        { clave: CLAVE_CLAUSULA_VENTA, valor: recVenta, updated_at: now },
+        { clave: CLAVE_CIUDAD, valor: recCiudad.trim(), updated_at: now },
+        { clave: CLAVE_REGISTRO, valor: recRegistro.trim(), updated_at: now }
+      ],
+      { onConflict: 'clave' }
+    )
+    setSavingRecibo(false)
+    if (error) return void toast.error(error.message)
+    toast.success('Textos de recibos de reserva guardados')
   }
 
   const save = async (): Promise<void> => {
@@ -376,6 +425,57 @@ export default function Ajustes(): JSX.Element {
           liquidación del mes anterior de un consorcio con unidades, se avisa. Los reclamos abiertos
           hace más de esos días también.
         </p>
+      </div>
+
+      <div className="card p-5 max-w-xl mt-5">
+        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <ReceiptText size={16} className="text-zinc-400" /> Recibos de reserva
+        </h2>
+        <p className="text-sm text-zinc-400 mt-1.5">
+          Cláusula de arrepentimiento y datos institucionales que aparecen en los recibos. Usá{' '}
+          <span className="text-zinc-200">**negrita**</span> para resaltar y los placeholders{' '}
+          <span className="text-zinc-300">{'{DOBLE_LETRAS}'}</span>,{' '}
+          <span className="text-zinc-300">{'{DOBLE}'}</span> (se completan con el doble del importe
+          al generar).
+        </p>
+        {!loading && (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-end gap-3 flex-wrap">
+              <div className="w-56">
+                <Field label="Ciudad por defecto">
+                  <TextInput value={recCiudad} onChange={(e) => setRecCiudad(e.target.value)} />
+                </Field>
+              </div>
+              <div className="w-40">
+                <Field label="N° de registro (REG.)">
+                  <TextInput value={recRegistro} onChange={(e) => setRecRegistro(e.target.value)} />
+                </Field>
+              </div>
+            </div>
+            <Field label="Cláusula — Reserva de locación">
+              <TextArea
+                value={recLoc}
+                onChange={(e) => setRecLoc(e.target.value)}
+                className="min-h-[140px] text-xs leading-relaxed"
+              />
+            </Field>
+            <Field label="Cláusula — Reserva de venta">
+              <TextArea
+                value={recVenta}
+                onChange={(e) => setRecVenta(e.target.value)}
+                className="min-h-[140px] text-xs leading-relaxed"
+              />
+            </Field>
+            <button
+              onClick={saveRecibo}
+              disabled={savingRecibo}
+              className="btn-primary text-sm flex items-center gap-2"
+            >
+              {savingRecibo ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              Guardar
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="card p-5 max-w-xl mt-5">

@@ -37,6 +37,38 @@ export type TipoNotificacion =
   | 'visita_proxima'
   | 'evento_proximo'
 
+export type TipoOperacionRecibo = 'locacion' | 'venta'
+export type EstadoReciboReserva = 'vigente' | 'convertido' | 'devuelto' | 'perdido'
+
+export type ReciboReserva = {
+  id: string
+  numero: number
+  tipo: TipoOperacionRecibo
+  propiedad_id: string | null
+  direccion: string
+  reservante_inquilino_id: string | null
+  reservante_nombre: string
+  reservante_dni: string | null
+  reservante_domicilio: string | null
+  reservante_email: string | null
+  reservante_telefono: string | null
+  moneda: Moneda
+  monto: number
+  monto_letras: string
+  plazo_meses: number | null
+  canon_total: number | null
+  monto_operacion: number | null
+  clausula: string
+  ciudad: string
+  registro: string
+  fecha: string
+  estado: EstadoReciboReserva
+  contrato_id: string | null
+  pdf_path: string | null
+  creado_por: string | null
+  created_at: string
+}
+
 export type Dueno = {
   id: string
   nombre: string
@@ -563,6 +595,7 @@ export type Database = {
       honorarios_operacion: TableDef<HonorarioOperacion>
       liquidaciones_socios: TableDef<LiquidacionSocios>
       gastos_lgprop: TableDef<GastoLgprop>
+      recibos_reserva: TableDef<ReciboReserva>
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -582,6 +615,8 @@ export type Database = {
       categoria_gasto_sociedad: CategoriaGastoSociedad
       estado_honorario: EstadoHonorario
       estado_liquidacion_socios: EstadoLiquidacionSocios
+      tipo_operacion_recibo: TipoOperacionRecibo
+      estado_recibo_reserva: EstadoReciboReserva
     }
     CompositeTypes: Record<string, never>
   }
