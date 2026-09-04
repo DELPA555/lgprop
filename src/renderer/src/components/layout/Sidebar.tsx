@@ -23,7 +23,8 @@ import {
   CalendarCheck,
   Landmark,
   Handshake,
-  ReceiptText
+  ReceiptText,
+  Instagram
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
@@ -51,7 +52,8 @@ const GROUPS: NavGroup[] = [
       { to: '/contratos', label: 'Contratos', Icon: FileText },
       { to: '/recibos-reserva', label: 'Recibos de Reserva', Icon: ReceiptText },
       { to: '/mantenimiento', label: 'Mantenimiento', Icon: Wrench },
-      { to: '/prospectos', label: 'Prospectos', Icon: Contact },
+      { to: '/prospectos', label: 'Prospectos', Icon: Instagram },
+      { to: '/interesados', label: 'Interesados', Icon: Contact },
       { to: '/visitas', label: 'Visitas', Icon: CalendarCheck },
       { to: '/agenda', label: 'Agenda', Icon: CalendarDays },
       { to: '/tareas', label: 'Tareas', Icon: CheckSquare }

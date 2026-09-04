@@ -24,6 +24,7 @@ import Consorcios from './pages/Consorcios'
 import ConsorcioDetalle from './pages/ConsorcioDetalle'
 import Tareas from './pages/Tareas'
 import Prospectos from './pages/Prospectos'
+import Interesados from './pages/Interesados'
 import Agenda from './pages/Agenda'
 import Visitas from './pages/Visitas'
 import Contabilidad from './pages/Contabilidad'
@@ -81,6 +82,7 @@ function AppRoutes(): JSX.Element {
         <Route path="/mantenimiento" element={<Mantenimiento />} />
         <Route path="/tareas" element={<Tareas />} />
         <Route path="/prospectos" element={<Prospectos />} />
+        <Route path="/interesados" element={<Interesados />} />
         <Route path="/agenda" element={<Agenda />} />
         <Route path="/visitas" element={<Visitas />} />
         <Route path="/duenos" element={<Duenos />} />

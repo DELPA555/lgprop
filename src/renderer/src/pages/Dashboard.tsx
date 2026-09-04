@@ -10,15 +10,17 @@ import {
   Wallet,
   ArrowRight,
   CalendarDays,
-  HandCoins
+  HandCoins,
+  CheckCircle2
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import PageHeader from '@/components/PageHeader'
 import EstadoChip, { ChipTone } from '@/components/ui/EstadoChip'
+import MarcarActualizadoModal from '@/components/MarcarActualizadoModal'
 import { formatARS, formatUSD, formatMoneda, formatDate } from '@/lib/format'
 import { useAuth } from '@/context/AuthContext'
-import type { Moneda, EstadoPago } from '@/types/database'
+import type { Moneda, EstadoPago, Contrato } from '@/types/database'
 
 interface PagoRow {
   id: string
@@ -82,6 +84,7 @@ interface Metrics {
   agenda: AgendaItem[]
   honorariosPendientes: number
   honorariosPendientesMonto: number
+  porActualizar: { contrato: Contrato; etiqueta: string }[]
 }
 
 function addDaysISO(days: number): string {
@@ -101,6 +104,10 @@ export default function Dashboard(): JSX.Element {
   const { isAdmin, isSocio } = useAuth()
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [marcarTarget, setMarcarTarget] = useState<{ contrato: Contrato; etiqueta: string } | null>(
+    null
+  )
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -119,9 +126,7 @@ export default function Dashboard(): JSX.Element {
       // ── Datos base: propiedades (con administrada), contratos, inquilinos ──
       const [{ data: props }, { data: ctrs }, { data: inqs }] = await Promise.all([
         supabase.from('propiedades').select('id, direccion, administrada'),
-        supabase
-          .from('contratos')
-          .select('id, estado, fecha_fin, proxima_actualizacion, moneda, propiedad_id, inquilino_id'),
+        supabase.from('contratos').select('*'),
         supabase.from('inquilinos').select('id, nombre')
       ])
 
@@ -161,17 +166,18 @@ export default function Dashboard(): JSX.Element {
       let vencimientos = 0
       let actualizaciones = 0
       let contratosActivos = 0
+      const porActualizar: { contrato: Contrato; etiqueta: string }[] = []
       for (const c of ctrs ?? []) {
         if (!adminSet.has(c.propiedad_id)) continue
         if (c.estado !== 'activo') continue
         contratosActivos++
         if (c.fecha_fin && c.fecha_fin >= hoy && c.fecha_fin <= en60) vencimientos++
-        if (
-          c.proxima_actualizacion &&
-          c.proxima_actualizacion >= hoy &&
-          c.proxima_actualizacion <= en30
-        )
-          actualizaciones++
+        // "Por actualizar" = próxima actualización dentro de 30 días o ya vencida
+        // (mismo criterio ámbar que el listado de Contratos).
+        if (c.proxima_actualizacion && c.proxima_actualizacion <= en30) {
+          porActualizar.push({ contrato: c as Contrato, etiqueta: etiquetaDe(c.id) })
+          if (c.proxima_actualizacion >= hoy) actualizaciones++
+        }
       }
 
       // ── Pagos atrasados (todos los meses, solo administradas) ──
@@ -351,14 +357,15 @@ export default function Dashboard(): JSX.Element {
         pagosMes,
         agenda,
         honorariosPendientes,
-        honorariosPendientesMonto
+        honorariosPendientesMonto,
+        porActualizar
       })
       setLoading(false)
     })()
     return () => {
       alive = false
     }
-  }, [isAdmin, isSocio])
+  }, [isAdmin, isSocio, reloadKey])
 
   const alerts = useMemo(() => {
     const m = metrics
@@ -601,6 +608,41 @@ export default function Dashboard(): JSX.Element {
         </div>
       </div>
 
+      {/* ── Actualizaciones de alquiler por confirmar ─────────────────── */}
+      {(metrics?.porActualizar.length ?? 0) > 0 && (
+        <div className="card mt-4 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+              <Calculator size={15} className="text-warn" /> Actualizaciones de alquiler por
+              confirmar
+            </h2>
+            <Link
+              to="/actualizaciones"
+              className="text-xs text-accent hover:text-accent-soft flex items-center gap-1"
+            >
+              Ver todas <ArrowRight size={13} />
+            </Link>
+          </div>
+          <ul className="divide-y divide-border/60">
+            {metrics?.porActualizar.map(({ contrato, etiqueta }) => (
+              <li key={contrato.id} className="px-4 py-2.5 flex items-center gap-3">
+                <span className="text-sm text-ink truncate flex-1">{etiqueta}</span>
+                <span className="text-[11px] text-warn num flex items-center gap-1 shrink-0">
+                  <CalendarClock size={12} /> {formatDate(contrato.proxima_actualizacion)}
+                </span>
+                <button
+                  onClick={() => setMarcarTarget({ contrato, etiqueta })}
+                  className="flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300 shrink-0"
+                  title="Registrar que ya se actualizó y limpiar el aviso"
+                >
+                  <CheckCircle2 size={12} /> Marcar actualizado
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* ── Agenda de hoy / mañana ────────────────────────────────────── */}
       <div className="card mt-4 overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -702,6 +744,13 @@ export default function Dashboard(): JSX.Element {
           </table>
         </div>
       </div>
+
+      <MarcarActualizadoModal
+        contrato={marcarTarget?.contrato ?? null}
+        etiqueta={marcarTarget?.etiqueta}
+        onClose={() => setMarcarTarget(null)}
+        onDone={() => setReloadKey((k) => k + 1)}
+      />
     </div>
   )
 }

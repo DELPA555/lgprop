@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Pencil, Trash2, UserPlus, ArrowRight, RotateCcw, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, UserCheck, Instagram, Facebook, Globe, Loader2 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
-import type { Interesado, EstadoInteresado, Propiedad } from '@/types/database'
+import type {
+  Prospecto,
+  RedOrigenProspecto,
+  EstadoProspecto,
+  Propiedad
+} from '@/types/database'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
 import Modal from '@/components/ui/Modal'
@@ -11,28 +16,62 @@ import { Field, TextInput, TextArea, Select } from '@/components/ui/Field'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/context/AuthContext'
 import { formatDate } from '@/lib/format'
+import { todayISO } from '@/lib/dates'
 
-type Form = Partial<Interesado>
+const RED_LABEL: Record<RedOrigenProspecto, string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  otro: 'Otro'
+}
+const RED_BADGE: Record<RedOrigenProspecto, string> = {
+  instagram: 'bg-pink-500/10 text-pink-400 border-pink-500/25',
+  facebook: 'bg-sky-500/10 text-sky-400 border-sky-500/25',
+  otro: 'bg-white/[0.05] text-ink-2 border-border'
+}
+const RedIcon = ({ red }: { red: RedOrigenProspecto }): JSX.Element => {
+  if (red === 'instagram') return <Instagram size={13} />
+  if (red === 'facebook') return <Facebook size={13} />
+  return <Globe size={13} />
+}
 
-const COLS: { estado: EstadoInteresado; titulo: string; tone: string; dot: string }[] = [
-  { estado: 'interesado', titulo: 'Interesados', tone: 'text-warn', dot: 'bg-warn' },
-  { estado: 'reservo', titulo: 'Reservaron', tone: 'text-ok', dot: 'bg-ok' },
-  { estado: 'descartado', titulo: 'Descartados', tone: 'text-ink-3', dot: 'bg-ink-3' }
-]
+const ESTADO_LABEL: Record<EstadoProspecto, string> = {
+  nuevo: 'Nuevo',
+  contactado: 'Contactado',
+  seguimiento: 'En seguimiento',
+  descartado: 'Descartado',
+  convertido: 'Convertido en cliente'
+}
+const ESTADO_BADGE: Record<EstadoProspecto, string> = {
+  nuevo: 'bg-info/10 text-info border-info/25',
+  contactado: 'bg-accent/12 text-accent border-accent/25',
+  seguimiento: 'bg-warn/10 text-warn border-warn/25',
+  descartado: 'bg-white/[0.05] text-ink-3 border-border',
+  convertido: 'bg-ok/10 text-ok border-ok/25'
+}
+
+type Form = Partial<Prospecto>
 
 export default function Prospectos(): JSX.Element {
   const toast = useToast()
   const { member } = useAuth()
-  const [rows, setRows] = useState<Interesado[]>([])
+  const [rows, setRows] = useState<Prospecto[]>([])
   const [propiedades, setPropiedades] = useState<Propiedad[]>([])
   const [loading, setLoading] = useState(true)
-  const [filtroProp, setFiltroProp] = useState<string>('todas')
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<Interesado | null>(null)
-  const [form, setForm] = useState<Form>({})
   const [saving, setSaving] = useState(false)
-  const [delTarget, setDelTarget] = useState<Interesado | null>(null)
+
+  const [fRed, setFRed] = useState<'' | RedOrigenProspecto>('')
+  const [fEstado, setFEstado] = useState<'' | EstadoProspecto>('')
+
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing] = useState<Prospecto | null>(null)
+  const [form, setForm] = useState<Form>({})
+
+  const [delTarget, setDelTarget] = useState<Prospecto | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const [convTarget, setConvTarget] = useState<Prospecto | null>(null)
+  const [convTipo, setConvTipo] = useState<'inquilino' | 'dueno'>('inquilino')
+  const [converting, setConverting] = useState(false)
 
   const propMap = useMemo(() => {
     const m: Record<string, string> = {}
@@ -46,12 +85,12 @@ export default function Prospectos(): JSX.Element {
       return
     }
     setLoading(true)
-    const [{ data: i }, { data: p }] = await Promise.all([
-      supabase.from('interesados').select('*').order('created_at', { ascending: false }),
+    const [{ data: pr }, { data: pp }] = await Promise.all([
+      supabase.from('prospectos').select('*').order('fecha_contacto', { ascending: false }),
       supabase.from('propiedades').select('id, direccion, estado').order('direccion')
     ])
-    setRows(i ?? [])
-    setPropiedades((p as Propiedad[]) ?? [])
+    setRows(pr ?? [])
+    setPropiedades((pp as Propiedad[]) ?? [])
     setLoading(false)
   }
   useEffect(() => {
@@ -59,28 +98,24 @@ export default function Prospectos(): JSX.Element {
   }, [])
 
   const visibles = useMemo(
-    () => (filtroProp === 'todas' ? rows : rows.filter((r) => r.propiedad_id === filtroProp)),
-    [rows, filtroProp]
+    () => rows.filter((r) => (!fRed || r.red_origen === fRed) && (!fEstado || r.estado === fEstado)),
+    [rows, fRed, fEstado]
   )
 
   const openCreate = (): void => {
     setEditing(null)
-    setForm({
-      estado: 'interesado',
-      propiedad_id: filtroProp !== 'todas' ? filtroProp : null,
-      fecha_consulta: new Date().toISOString().slice(0, 10)
-    })
+    setForm({ red_origen: 'instagram', estado: 'nuevo', fecha_contacto: todayISO() })
     setModalOpen(true)
   }
-  const openEdit = (r: Interesado): void => {
+  const openEdit = (r: Prospecto): void => {
     setEditing(r)
     setForm({ ...r })
     setModalOpen(true)
   }
 
-  const mover = async (r: Interesado, estado: EstadoInteresado): Promise<void> => {
+  const cambiarEstado = async (r: Prospecto, estado: EstadoProspecto): Promise<void> => {
     setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, estado } : x)))
-    const { error } = await supabase.from('interesados').update({ estado }).eq('id', r.id)
+    const { error } = await supabase.from('prospectos').update({ estado }).eq('id', r.id)
     if (error) {
       toast.error(error.message)
       void load()
@@ -88,25 +123,24 @@ export default function Prospectos(): JSX.Element {
   }
 
   const save = async (): Promise<void> => {
-    if (!form.nombre?.trim()) return toast.error('Poné el nombre del interesado')
+    if (!form.nombre?.trim()) return void toast.error('Poné el nombre del prospecto')
     setSaving(true)
     const payload = {
-      propiedad_id: form.propiedad_id || null,
       nombre: form.nombre.trim(),
-      telefono: form.telefono || null,
-      email: form.email || null,
-      fecha_consulta: form.fecha_consulta || new Date().toISOString().slice(0, 10),
-      fecha_visita: form.fecha_visita || null,
-      estado: (form.estado ?? 'interesado') as EstadoInteresado,
-      origen: form.origen || null,
-      notas: form.notas || null
+      telefono: form.telefono?.trim() || null,
+      red_origen: (form.red_origen ?? 'instagram') as RedOrigenProspecto,
+      fecha_contacto: form.fecha_contacto || todayISO(),
+      propiedad_id: form.propiedad_id || null,
+      propiedad_interes: form.propiedad_interes?.trim() || null,
+      estado: (form.estado ?? 'nuevo') as EstadoProspecto,
+      notas: form.notas?.trim() || null
     }
     const { error } = editing
-      ? await supabase.from('interesados').update(payload).eq('id', editing.id)
-      : await supabase.from('interesados').insert({ ...payload, creado_por: member?.id ?? null })
+      ? await supabase.from('prospectos').update(payload).eq('id', editing.id)
+      : await supabase.from('prospectos').insert({ ...payload, creado_por: member?.id ?? null })
     setSaving(false)
     if (error) return void toast.error(error.message)
-    toast.success(editing ? 'Interesado actualizado' : 'Interesado agregado')
+    toast.success(editing ? 'Prospecto actualizado' : 'Prospecto agregado')
     setModalOpen(false)
     void load()
   }
@@ -114,142 +148,197 @@ export default function Prospectos(): JSX.Element {
   const doDelete = async (): Promise<void> => {
     if (!delTarget) return
     setDeleting(true)
-    const { error } = await supabase.from('interesados').delete().eq('id', delTarget.id)
+    const { error } = await supabase.from('prospectos').delete().eq('id', delTarget.id)
     setDeleting(false)
     if (error) return void toast.error(error.message)
-    toast.success('Interesado eliminado')
+    toast.success('Prospecto eliminado')
     setDelTarget(null)
     void load()
   }
+
+  const openConvertir = (r: Prospecto): void => {
+    setConvTarget(r)
+    setConvTipo('inquilino')
+  }
+
+  const convertir = async (): Promise<void> => {
+    if (!convTarget) return
+    setConverting(true)
+    try {
+      const base = { nombre: convTarget.nombre, telefono: convTarget.telefono || null }
+      const tabla = convTipo === 'inquilino' ? 'inquilinos' : 'duenos'
+      const ins = await supabase.from(tabla).insert(base).select('id').single()
+      if (ins.error) return void toast.error(ins.error.message)
+      const upd = await supabase
+        .from('prospectos')
+        .update({
+          estado: 'convertido',
+          convertido_inquilino_id: convTipo === 'inquilino' ? ins.data.id : null,
+          convertido_dueno_id: convTipo === 'dueno' ? ins.data.id : null
+        })
+        .eq('id', convTarget.id)
+      if (upd.error) return void toast.error(upd.error.message)
+      toast.success(
+        `Prospecto convertido en ${convTipo === 'inquilino' ? 'inquilino' : 'dueño'}. Completá sus datos en ${
+          convTipo === 'inquilino' ? 'Inquilinos' : 'Dueños'
+        }.`
+      )
+      setConvTarget(null)
+      void load()
+    } finally {
+      setConverting(false)
+    }
+  }
+
+  const set = (p: Partial<Form>): void => setForm((f) => ({ ...f, ...p }))
 
   return (
     <div className="p-6">
       <PageHeader
         title="Prospectos"
-        subtitle="Quién preguntó por qué propiedad"
+        subtitle="Contactos de Instagram y Facebook para recontactar"
         actions={
           <button onClick={openCreate} className="btn-primary flex items-center gap-2 text-sm">
-            <UserPlus size={16} /> Nuevo interesado
+            <Plus size={16} /> Nuevo prospecto
           </button>
         }
       />
 
       {!isSupabaseConfigured && <ConfigNotice />}
 
-      <div className="mb-4 max-w-xs">
-        <Select value={filtroProp} onChange={(e) => setFiltroProp(e.target.value)}>
-          <option value="todas">Todas las propiedades</option>
-          {propiedades.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.direccion}
-              {p.estado === 'vacia' ? ' · vacía' : ''}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <Select
+          value={fRed}
+          onChange={(e) => setFRed(e.target.value as '' | RedOrigenProspecto)}
+          className="w-auto"
+        >
+          <option value="">Todas las redes</option>
+          <option value="instagram">Instagram</option>
+          <option value="facebook">Facebook</option>
+          <option value="otro">Otro</option>
+        </Select>
+        <Select
+          value={fEstado}
+          onChange={(e) => setFEstado(e.target.value as '' | EstadoProspecto)}
+          className="w-auto"
+        >
+          <option value="">Todos los estados</option>
+          {(Object.keys(ESTADO_LABEL) as EstadoProspecto[]).map((e) => (
+            <option key={e} value={e}>
+              {ESTADO_LABEL[e]}
             </option>
           ))}
         </Select>
+        <span className="text-xs text-ink-3">
+          {visibles.length} prospecto{visibles.length === 1 ? '' : 's'}
+        </span>
       </div>
 
-      {loading ? (
-        <div className="card p-10 text-center text-ink-3 text-sm">Cargando…</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {COLS.map((col) => {
-            const items = visibles.filter((r) => r.estado === col.estado)
-            return (
-              <div key={col.estado} className="flex flex-col">
-                <div className="flex items-center gap-2 mb-2 px-1">
-                  <span className={`w-2 h-2 rounded-full ${col.dot}`} />
-                  <h2 className={`text-sm font-semibold ${col.tone}`}>{col.titulo}</h2>
-                  <span className="text-xs text-ink-3 num">{items.length}</span>
-                </div>
-                <div className="space-y-2 min-h-[80px]">
-                  {items.length === 0 ? (
-                    <div className="card p-4 text-center text-xs text-ink-3 border-dashed">
-                      Sin interesados
+      <div className="card overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-ink-3 uppercase tracking-wider border-b border-border">
+              <th className="px-4 py-3 font-medium">Nombre</th>
+              <th className="px-4 py-3 font-medium">Red</th>
+              <th className="px-4 py-3 font-medium">Contacto</th>
+              <th className="px-4 py-3 font-medium">Interés</th>
+              <th className="px-4 py-3 font-medium">Teléfono</th>
+              <th className="px-4 py-3 font-medium">Estado</th>
+              <th className="px-4 py-3 font-medium text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-ink-3">
+                  Cargando…
+                </td>
+              </tr>
+            ) : visibles.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-10 text-center text-ink-3">
+                  No hay prospectos. Cargá el primero con “Nuevo prospecto”.
+                </td>
+              </tr>
+            ) : (
+              visibles.map((r) => (
+                <tr key={r.id} className="border-b border-border/60 hover:bg-white/[0.02]">
+                  <td className="px-4 py-3 text-ink font-medium">{r.nombre}</td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${RED_BADGE[r.red_origen]}`}
+                    >
+                      <RedIcon red={r.red_origen} />
+                      {RED_LABEL[r.red_origen]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-ink-2 num text-xs">{formatDate(r.fecha_contacto)}</td>
+                  <td className="px-4 py-3 text-ink-2 text-xs max-w-[200px] truncate">
+                    {r.propiedad_id ? propMap[r.propiedad_id] : r.propiedad_interes || '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.telefono ? (
+                      <TelefonoWhatsApp
+                        numero={r.telefono}
+                        mensaje={`Hola ${r.nombre}, te contactamos de LG Propiedades por tu consulta.`}
+                        size={14}
+                      />
+                    ) : (
+                      <span className="text-ink-3">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={r.estado}
+                      onChange={(e) => cambiarEstado(r, e.target.value as EstadoProspecto)}
+                      className={`text-xs rounded-full border px-2 py-0.5 bg-transparent cursor-pointer ${ESTADO_BADGE[r.estado]}`}
+                      title="Cambiar estado"
+                    >
+                      {(Object.keys(ESTADO_LABEL) as EstadoProspecto[]).map((e) => (
+                        <option key={e} value={e} className="bg-surface text-ink">
+                          {ESTADO_LABEL[e]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      {r.estado !== 'convertido' && (
+                        <button
+                          onClick={() => openConvertir(r)}
+                          className="p-1.5 rounded-md text-ink-3 hover:text-ok hover:bg-white/5"
+                          title="Convertir en cliente (inquilino o dueño)"
+                        >
+                          <UserCheck size={15} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => openEdit(r)}
+                        className="p-1.5 rounded-md text-ink-3 hover:text-ink hover:bg-white/5"
+                        title="Editar"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        onClick={() => setDelTarget(r)}
+                        className="p-1.5 rounded-md text-ink-3 hover:text-bad hover:bg-white/5"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </div>
-                  ) : (
-                    items.map((r) => (
-                      <div key={r.id} className="card p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="text-sm text-white font-medium truncate">{r.nombre}</div>
-                            {r.propiedad_id && (
-                              <div className="text-[11px] text-ink-3 truncate">
-                                {propMap[r.propiedad_id] ?? 'propiedad'}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <button
-                              onClick={() => openEdit(r)}
-                              className="p-1 rounded-md text-ink-3 hover:text-ink hover:bg-white/5"
-                              title="Editar"
-                            >
-                              <Pencil size={13} />
-                            </button>
-                            <button
-                              onClick={() => setDelTarget(r)}
-                              className="p-1 rounded-md text-ink-3 hover:text-bad hover:bg-white/5"
-                              title="Eliminar"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-ink-3">
-                          {r.telefono && <TelefonoWhatsApp numero={r.telefono} size={13} />}
-                          <span>
-                            {r.fecha_visita
-                              ? `visitó ${formatDate(r.fecha_visita)}`
-                              : `consultó ${formatDate(r.fecha_consulta)}`}
-                          </span>
-                        </div>
-                        {r.notas && (
-                          <p className="text-[11px] text-ink-2 mt-1.5 line-clamp-2 whitespace-pre-wrap">
-                            {r.notas}
-                          </p>
-                        )}
-                        {/* Mover de estado */}
-                        <div className="flex items-center gap-1 mt-2 pt-2 border-t border-border/60">
-                          {col.estado !== 'interesado' && (
-                            <button
-                              onClick={() => mover(r, 'interesado')}
-                              className="flex items-center gap-1 text-[11px] text-ink-3 hover:text-warn"
-                            >
-                              <RotateCcw size={11} /> Interesado
-                            </button>
-                          )}
-                          {col.estado !== 'reservo' && (
-                            <button
-                              onClick={() => mover(r, 'reservo')}
-                              className="flex items-center gap-1 text-[11px] text-ink-3 hover:text-ok ml-auto"
-                            >
-                              <ArrowRight size={11} /> Reservó
-                            </button>
-                          )}
-                          {col.estado !== 'descartado' && (
-                            <button
-                              onClick={() => mover(r, 'descartado')}
-                              className={`flex items-center gap-1 text-[11px] text-ink-3 hover:text-bad ${
-                                col.estado === 'reservo' ? 'ml-auto' : ''
-                              }`}
-                            >
-                              <X size={11} /> Descartar
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
+      {/* Alta / edición */}
       <Modal
         open={modalOpen}
-        title={editing ? 'Editar interesado' : 'Nuevo interesado'}
+        title={editing ? 'Editar prospecto' : 'Nuevo prospecto'}
         onClose={() => setModalOpen(false)}
         footer={
           <>
@@ -270,83 +359,135 @@ export default function Prospectos(): JSX.Element {
             <Field label="Nombre" required>
               <TextInput
                 value={form.nombre ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+                onChange={(e) => set({ nombre: e.target.value })}
                 autoFocus
               />
             </Field>
-            <Field label="Propiedad de interés">
+            <Field label="Teléfono">
+              <TextInput
+                value={form.telefono ?? ''}
+                onChange={(e) => set({ telefono: e.target.value })}
+                placeholder="223 555 1234"
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Red de origen">
               <Select
-                value={form.propiedad_id ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, propiedad_id: e.target.value || null }))}
+                value={form.red_origen ?? 'instagram'}
+                onChange={(e) => set({ red_origen: e.target.value as RedOrigenProspecto })}
               >
-                <option value="">— Sin especificar —</option>
-                {propiedades.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.direccion}
+                <option value="instagram">Instagram</option>
+                <option value="facebook">Facebook</option>
+                <option value="otro">Otro</option>
+              </Select>
+            </Field>
+            <Field label="Fecha de contacto">
+              <TextInput
+                type="date"
+                value={form.fecha_contacto ?? ''}
+                onChange={(e) => set({ fecha_contacto: e.target.value })}
+              />
+            </Field>
+            <Field label="Estado">
+              <Select
+                value={form.estado ?? 'nuevo'}
+                onChange={(e) => set({ estado: e.target.value as EstadoProspecto })}
+              >
+                {(Object.keys(ESTADO_LABEL) as EstadoProspecto[]).map((e) => (
+                  <option key={e} value={e}>
+                    {ESTADO_LABEL[e]}
                   </option>
                 ))}
               </Select>
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Teléfono">
-              <TextInput
-                value={form.telefono ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))}
-              />
-            </Field>
-            <Field label="Email">
-              <TextInput
-                value={form.email ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              />
-            </Field>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Fecha de consulta">
-              <TextInput
-                type="date"
-                value={form.fecha_consulta ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, fecha_consulta: e.target.value }))}
-              />
-            </Field>
-            <Field label="Cuándo visitó">
-              <TextInput
-                type="date"
-                value={form.fecha_visita ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, fecha_visita: e.target.value || null }))}
-              />
-            </Field>
-            <Field label="Estado">
-              <Select
-                value={form.estado ?? 'interesado'}
-                onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value as EstadoInteresado }))}
-              >
-                <option value="interesado">Interesado</option>
-                <option value="reservo">Reservó</option>
-                <option value="descartado">Descartado</option>
-              </Select>
-            </Field>
-          </div>
-          <Field label="Origen (cómo llegó)">
+          <Field label="Propiedad de interés (del sistema)">
+            <Select
+              value={form.propiedad_id ?? ''}
+              onChange={(e) => set({ propiedad_id: e.target.value || null })}
+            >
+              <option value="">— Sin especificar —</option>
+              {propiedades.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.direccion}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Propiedad de interés (texto libre)">
             <TextInput
-              value={form.origen ?? ''}
-              onChange={(e) => setForm((f) => ({ ...f, origen: e.target.value }))}
-              placeholder="Portal, cartel, referido…"
+              value={form.propiedad_interes ?? ''}
+              onChange={(e) => set({ propiedad_interes: e.target.value })}
+              placeholder="Ej: 2 ambientes en el centro, hasta $250.000"
             />
           </Field>
           <Field label="Notas">
             <TextArea
               value={form.notas ?? ''}
-              onChange={(e) => setForm((f) => ({ ...f, notas: e.target.value }))}
+              onChange={(e) => set({ notas: e.target.value })}
+              placeholder="Qué consultó, seguimiento, etc."
             />
           </Field>
         </div>
       </Modal>
 
+      {/* Convertir en cliente */}
+      <Modal
+        open={!!convTarget}
+        title="Convertir en cliente"
+        onClose={() => setConvTarget(null)}
+        footer={
+          <>
+            <button
+              onClick={() => setConvTarget(null)}
+              className="px-4 py-2 rounded-lg text-sm text-zinc-300 hover:text-white border border-border"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={convertir}
+              disabled={converting}
+              className="btn-primary text-sm flex items-center gap-2 disabled:opacity-50"
+            >
+              {converting ? <Loader2 size={15} className="animate-spin" /> : <UserCheck size={15} />}
+              Convertir
+            </button>
+          </>
+        }
+      >
+        {convTarget && (
+          <div className="space-y-4">
+            <p className="text-sm text-ink-2">
+              Se crea <span className="text-ink">{convTarget.nombre}</span>
+              {convTarget.telefono ? ` (${convTarget.telefono})` : ''} en el sistema y el prospecto
+              queda marcado como convertido.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {(['inquilino', 'dueno'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setConvTipo(t)}
+                  className={`rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                    convTipo === t
+                      ? 'border-accent/50 bg-accent/10 text-accent'
+                      : 'border-border text-ink-2 hover:text-ink'
+                  }`}
+                >
+                  Crear como {t === 'inquilino' ? 'inquilino' : 'dueño'}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-ink-3">
+              Después completá el resto de los datos en el módulo correspondiente.
+            </p>
+          </div>
+        )}
+      </Modal>
+
       <ConfirmDialog
         open={!!delTarget}
-        message={`¿Eliminar a "${delTarget?.nombre}" del pipeline?`}
+        message={`¿Eliminar a "${delTarget?.nombre}" de prospectos?`}
         onConfirm={doDelete}
         onClose={() => setDelTarget(null)}
         loading={deleting}

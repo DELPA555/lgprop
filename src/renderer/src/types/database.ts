@@ -69,6 +69,30 @@ export type ReciboReserva = {
   created_at: string
 }
 
+export type RedOrigenProspecto = 'instagram' | 'facebook' | 'otro'
+export type EstadoProspecto =
+  | 'nuevo'
+  | 'contactado'
+  | 'seguimiento'
+  | 'descartado'
+  | 'convertido'
+
+export type Prospecto = {
+  id: string
+  nombre: string
+  telefono: string | null
+  red_origen: RedOrigenProspecto
+  fecha_contacto: string
+  propiedad_id: string | null
+  propiedad_interes: string | null
+  notas: string | null
+  estado: EstadoProspecto
+  convertido_inquilino_id: string | null
+  convertido_dueno_id: string | null
+  creado_por: string | null
+  created_at: string
+}
+
 export type Dueno = {
   id: string
   nombre: string
@@ -596,6 +620,7 @@ export type Database = {
       liquidaciones_socios: TableDef<LiquidacionSocios>
       gastos_lgprop: TableDef<GastoLgprop>
       recibos_reserva: TableDef<ReciboReserva>
+      prospectos: TableDef<Prospecto>
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -617,6 +642,8 @@ export type Database = {
       estado_liquidacion_socios: EstadoLiquidacionSocios
       tipo_operacion_recibo: TipoOperacionRecibo
       estado_recibo_reserva: EstadoReciboReserva
+      red_origen_prospecto: RedOrigenProspecto
+      estado_prospecto: EstadoProspecto
     }
     CompositeTypes: Record<string, never>
   }

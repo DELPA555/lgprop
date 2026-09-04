@@ -13,7 +13,8 @@ import {
   AlertTriangle,
   ShieldCheck,
   Paperclip,
-  FileText
+  FileText,
+  CheckCircle2
 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type {
@@ -46,6 +47,7 @@ import {
 } from '@/lib/dates'
 import GenerarContratoModal from '@/components/ai/GenerarContratoModal'
 import ArchivoPreviewModal from '@/components/ArchivoPreviewModal'
+import MarcarActualizadoModal from '@/components/MarcarActualizadoModal'
 import { edgeErrorMessage } from '@/lib/edgeError'
 import {
   subirArchivo,
@@ -149,6 +151,7 @@ export default function Contratos(): JSX.Element {
   const [archivosNuevos, setArchivosNuevos] = useState<File[]>([])
   const [archivosExistentes, setArchivosExistentes] = useState<ContratoArchivo[]>([])
   const [previewArchivo, setPreviewArchivo] = useState<ContratoArchivo | null>(null)
+  const [marcarTarget, setMarcarTarget] = useState<Contrato | null>(null)
 
   const propMap = useMemo(() => {
     const m: Record<string, Propiedad> = {}
@@ -769,6 +772,15 @@ export default function Contratos(): JSX.Element {
                       ) : (
                         <span className="text-zinc-600">—</span>
                       )}
+                      {proxSoon && c.estado === 'activo' && (
+                        <button
+                          onClick={() => setMarcarTarget(c)}
+                          className="mt-1 flex items-center gap-1 text-[11px] text-emerald-400 hover:text-emerald-300"
+                          title="Registrar que ya se actualizó y limpiar el aviso"
+                        >
+                          <CheckCircle2 size={11} /> Marcar actualizado
+                        </button>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -1354,6 +1366,19 @@ export default function Contratos(): JSX.Element {
         open={!!previewArchivo}
         archivo={previewArchivo}
         onClose={() => setPreviewArchivo(null)}
+      />
+
+      <MarcarActualizadoModal
+        contrato={marcarTarget}
+        etiqueta={
+          marcarTarget
+            ? `${propMap[marcarTarget.propiedad_id]?.direccion ?? 'Propiedad'} · ${
+                inqMap[marcarTarget.inquilino_id] ?? ''
+              }`
+            : undefined
+        }
+        onClose={() => setMarcarTarget(null)}
+        onDone={load}
       />
     </div>
   )
