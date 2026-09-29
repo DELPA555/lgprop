@@ -24,7 +24,8 @@ import {
   Landmark,
   Handshake,
   ReceiptText,
-  Instagram
+  Instagram,
+  Megaphone
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
@@ -47,6 +48,7 @@ const GROUPS: NavGroup[] = [
     title: 'Operación',
     items: [
       { to: '/propiedades', label: 'Propiedades', Icon: Building2 },
+      { to: '/cartera', label: 'Cartera', Icon: Megaphone },
       { to: '/duenos', label: 'Dueños', Icon: Users },
       { to: '/inquilinos', label: 'Inquilinos', Icon: UserSquare2 },
       { to: '/contratos', label: 'Contratos', Icon: FileText },

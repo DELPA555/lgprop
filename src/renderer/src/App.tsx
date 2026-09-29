@@ -30,6 +30,7 @@ import Visitas from './pages/Visitas'
 import Contabilidad from './pages/Contabilidad'
 import Sociedad from './pages/Sociedad'
 import RecibosReserva from './pages/RecibosReserva'
+import Cartera from './pages/Cartera'
 
 function FullScreenConfig(): JSX.Element {
   return (
@@ -89,6 +90,7 @@ function AppRoutes(): JSX.Element {
         <Route path="/inquilinos" element={<Inquilinos />} />
         <Route path="/contratos" element={<Contratos />} />
         <Route path="/recibos-reserva" element={<RecibosReserva />} />
+        <Route path="/cartera" element={<Cartera />} />
         <Route path="/actualizaciones" element={<Actualizaciones />} />
         <Route path="/indices" element={<Indices />} />
         <Route path="/pagos" element={<Pagos />} />

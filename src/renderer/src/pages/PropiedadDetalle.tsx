@@ -40,6 +40,7 @@ import { formatARS, formatDate } from '@/lib/format'
 import { daysUntil } from '@/lib/dates'
 import MantenimientoModal, { MANT_ESTADOS } from '@/components/MantenimientoModal'
 import SeguroModal, { seguroTipoLabel } from '@/components/SeguroModal'
+import PublicacionSection from '@/components/PublicacionSection'
 
 const ESTADO_CONTRATO_BADGE: Record<EstadoContrato, string> = {
   activo: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -334,6 +335,11 @@ export default function PropiedadDetalle(): JSX.Element {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Publicación / Cartera disponible */}
+          <div className="mb-5">
+            <PublicacionSection prop={prop} onSaved={load} />
           </div>
 
           {/* Dueño (transferencias) + Garante del contrato activo */}
