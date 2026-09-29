@@ -11,9 +11,6 @@ let mainWindow: BrowserWindow | null = null
 // Al abrir la app (empaquetada), chequea si hay una versión nueva publicada,
 // la descarga en segundo plano y avisa al renderer para mostrar el aviso.
 function setupAutoUpdater(win: BrowserWindow): void {
-  // El updater sólo funciona sobre la app instalada (no en `npm run dev`).
-  if (!app.isPackaged) return
-
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.logger = console
@@ -22,10 +19,21 @@ function setupAutoUpdater(win: BrowserWindow): void {
     if (!win.isDestroyed()) win.webContents.send(channel, payload)
   }
 
+  // Eventos del updater → renderer. Se registran SIEMPRE porque también
+  // alimentan el chequeo manual desde Ajustes, no sólo el automático.
   autoUpdater.on('update-available', (info) => send('update:available', { version: info.version }))
+  autoUpdater.on('update-not-available', (info) =>
+    send('update:not-available', { version: info.version })
+  )
   autoUpdater.on('update-downloaded', (info) => send('update:downloaded', { version: info.version }))
-  autoUpdater.on('error', (err) => console.error('[auto-update]', err))
+  autoUpdater.on('error', (err) => {
+    console.error('[auto-update]', err)
+    send('update:error', { message: err instanceof Error ? err.message : String(err) })
+  })
 
+  // El chequeo automático (al abrir + cada 6 h) sólo corre sobre la app
+  // instalada; en `npm run dev` electron-updater no puede actualizar.
+  if (!app.isPackaged) return
   const check = (): void => {
     autoUpdater.checkForUpdates().catch((e) => console.error('[auto-update] check', e))
   }
@@ -76,6 +84,24 @@ app.whenReady().then(() => {
   ipcMain.handle('shell:openExternal', (_e, url: string) => shell.openExternal(url))
   // Reiniciar para aplicar la actualización ya descargada
   ipcMain.handle('update:restart', () => autoUpdater.quitAndInstall())
+  // Chequeo manual de actualizaciones (botón en Ajustes). El progreso real
+  // (disponible / descargada / sin novedades / error) llega por los eventos
+  // que emite setupAutoUpdater; acá sólo disparamos y reportamos el arranque.
+  ipcMain.handle('update:check', async () => {
+    if (!app.isPackaged) {
+      return {
+        ok: false,
+        dev: true,
+        error: 'El chequeo de actualizaciones sólo funciona en la app instalada.'
+      }
+    }
+    try {
+      await autoUpdater.checkForUpdates()
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
   // Almacenamiento seguro de la sesión (login persistente)
   registerSessionIpc()
 

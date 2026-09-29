@@ -1,10 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 type UpdateInfo = { version: string }
+type UpdateError = { message: string }
+type CheckResult = { ok: boolean; error?: string; dev?: boolean }
 
 // Suscribe a un canal de update y devuelve una función para desuscribir
-function onChannel(channel: string, cb: (info: UpdateInfo) => void): () => void {
-  const listener = (_e: unknown, info: UpdateInfo): void => cb(info)
+function onChannel<T>(channel: string, cb: (payload: T) => void): () => void {
+  const listener = (_e: unknown, payload: T): void => cb(payload)
   ipcRenderer.on(channel, listener)
   return () => ipcRenderer.removeListener(channel, listener)
 }
@@ -16,8 +18,14 @@ const api = {
   // Actualización automática
   onUpdateAvailable: (cb: (info: UpdateInfo) => void): (() => void) =>
     onChannel('update:available', cb),
+  onUpdateNotAvailable: (cb: (info: UpdateInfo) => void): (() => void) =>
+    onChannel('update:not-available', cb),
   onUpdateDownloaded: (cb: (info: UpdateInfo) => void): (() => void) =>
     onChannel('update:downloaded', cb),
+  onUpdateError: (cb: (err: UpdateError) => void): (() => void) =>
+    onChannel('update:error', cb),
+  // Chequeo manual (botón en Ajustes)
+  checkForUpdates: (): Promise<CheckResult> => ipcRenderer.invoke('update:check'),
   restartToUpdate: (): Promise<void> => ipcRenderer.invoke('update:restart'),
   // Almacenamiento seguro de la sesión (login persistente)
   session: {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Save, Loader2, BellRing, DollarSign, Database, Download, RefreshCw, Building, CalendarDays, ReceiptText, Megaphone } from 'lucide-react'
+import { Save, Loader2, BellRing, DollarSign, Database, Download, RefreshCw, Building, CalendarDays, ReceiptText, Megaphone, DownloadCloud } from 'lucide-react'
+import BuscarActualizacion from '@/components/BuscarActualizacion'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
@@ -600,6 +601,17 @@ export default function Ajustes(): JSX.Element {
             ))
           )}
         </div>
+      </div>
+
+      <div className="card p-5 max-w-xl mt-5">
+        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <DownloadCloud size={16} className="text-zinc-400" /> Actualizaciones de la app
+        </h2>
+        <p className="text-sm text-zinc-400 mt-1.5">
+          La app busca actualizaciones sola al abrir y cada 6 horas. Si querés, forzá una búsqueda
+          ahora mismo.
+        </p>
+        <BuscarActualizacion />
       </div>
     </div>
   )
