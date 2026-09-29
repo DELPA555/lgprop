@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Save, Loader2, BellRing, DollarSign, Database, Download, RefreshCw, Building, CalendarDays, ReceiptText } from 'lucide-react'
+import { Save, Loader2, BellRing, DollarSign, Database, Download, RefreshCw, Building, CalendarDays, ReceiptText, Megaphone } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
@@ -22,6 +22,9 @@ const CLAVE_COTIZ = 'cotizacion_pagos_tipo'
 const CLAVE_CORTE = 'consorcios_corte_liquidacion_dia'
 const CLAVE_RECLAMO = 'consorcios_reclamo_dias_alerta'
 const CLAVE_EVENTOS = 'avisos_eventos_dias_anticipacion'
+const CLAVE_FICHA_TEL = 'ficha_contacto_telefono'
+const CLAVE_FICHA_EMAIL = 'ficha_contacto_email'
+const CLAVE_FICHA_WEB = 'ficha_contacto_web'
 const PRESETS = [30, 60, 90]
 const TIPOS_COTIZ = [
   { id: 'blue', label: 'Blue' },
@@ -51,6 +54,10 @@ export default function Ajustes(): JSX.Element {
   const [recCiudad, setRecCiudad] = useState(CIUDAD_DEFAULT)
   const [recRegistro, setRecRegistro] = useState(REGISTRO_DEFAULT)
   const [savingRecibo, setSavingRecibo] = useState(false)
+  const [fichaTel, setFichaTel] = useState('')
+  const [fichaEmail, setFichaEmail] = useState('')
+  const [fichaWeb, setFichaWeb] = useState('')
+  const [savingFicha, setSavingFicha] = useState(false)
 
   const loadBackups = async (): Promise<void> => {
     const { data } = await supabase.storage
@@ -99,7 +106,10 @@ export default function Ajustes(): JSX.Element {
           CLAVE_CLAUSULA_LOCACION,
           CLAVE_CLAUSULA_VENTA,
           CLAVE_CIUDAD,
-          CLAVE_REGISTRO
+          CLAVE_REGISTRO,
+          CLAVE_FICHA_TEL,
+          CLAVE_FICHA_EMAIL,
+          CLAVE_FICHA_WEB
         ])
       for (const row of data ?? []) {
         if (row.clave === CLAVE_DIAS && row.valor) setDias(parseInt(row.valor, 10) || 60)
@@ -114,6 +124,9 @@ export default function Ajustes(): JSX.Element {
         if (row.clave === CLAVE_CLAUSULA_VENTA && row.valor) setRecVenta(row.valor)
         if (row.clave === CLAVE_CIUDAD && row.valor) setRecCiudad(row.valor)
         if (row.clave === CLAVE_REGISTRO && row.valor) setRecRegistro(row.valor)
+        if (row.clave === CLAVE_FICHA_TEL && row.valor != null) setFichaTel(row.valor)
+        if (row.clave === CLAVE_FICHA_EMAIL && row.valor != null) setFichaEmail(row.valor)
+        if (row.clave === CLAVE_FICHA_WEB && row.valor != null) setFichaWeb(row.valor)
       }
       // Últimas cotizaciones (una por tipo) para mostrar de referencia
       const { data: cot } = await supabase
@@ -192,6 +205,22 @@ export default function Ajustes(): JSX.Element {
     setSavingRecibo(false)
     if (error) return void toast.error(error.message)
     toast.success('Textos de recibos de reserva guardados')
+  }
+
+  const saveFicha = async (): Promise<void> => {
+    setSavingFicha(true)
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('configuracion').upsert(
+      [
+        { clave: CLAVE_FICHA_TEL, valor: fichaTel.trim(), updated_at: now },
+        { clave: CLAVE_FICHA_EMAIL, valor: fichaEmail.trim(), updated_at: now },
+        { clave: CLAVE_FICHA_WEB, valor: fichaWeb.trim(), updated_at: now }
+      ],
+      { onConflict: 'clave' }
+    )
+    setSavingFicha(false)
+    if (error) return void toast.error(error.message)
+    toast.success('Datos de contacto de la ficha guardados')
   }
 
   const save = async (): Promise<void> => {
@@ -472,6 +501,56 @@ export default function Ajustes(): JSX.Element {
               className="btn-primary text-sm flex items-center gap-2"
             >
               {savingRecibo ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+              Guardar
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="card p-5 max-w-xl mt-5">
+        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <Megaphone size={16} className="text-zinc-400" /> Ficha de propiedad · contacto
+        </h2>
+        <p className="text-sm text-zinc-400 mt-1.5">
+          Estos datos aparecen al pie de la ficha en PDF que se comparte con los clientes desde la{' '}
+          <span className="text-zinc-200">Cartera</span>. Los que dejes vacíos no se muestran.
+        </p>
+        {!loading && (
+          <div className="mt-4 space-y-4">
+            <div className="flex items-end gap-3 flex-wrap">
+              <div className="w-56">
+                <Field label="Teléfono">
+                  <TextInput
+                    value={fichaTel}
+                    onChange={(e) => setFichaTel(e.target.value)}
+                    placeholder="Ej: 223 555-1234"
+                  />
+                </Field>
+              </div>
+              <div className="w-64">
+                <Field label="Email">
+                  <TextInput
+                    type="email"
+                    value={fichaEmail}
+                    onChange={(e) => setFichaEmail(e.target.value)}
+                    placeholder="Ej: info@lgpropiedades.com"
+                  />
+                </Field>
+              </div>
+            </div>
+            <Field label="Web / redes">
+              <TextInput
+                value={fichaWeb}
+                onChange={(e) => setFichaWeb(e.target.value)}
+                placeholder="Ej: www.lgpropiedades.com.ar"
+              />
+            </Field>
+            <button
+              onClick={saveFicha}
+              disabled={savingFicha}
+              className="btn-primary text-sm flex items-center gap-2"
+            >
+              {savingFicha ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
               Guardar
             </button>
           </div>

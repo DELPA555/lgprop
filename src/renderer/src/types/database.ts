@@ -7,6 +7,8 @@
 //   supabase gen types typescript --project-id <id> > src/renderer/src/types/database.ts
 
 export type EstadoPropiedad = 'alquilada' | 'vacia'
+export type DisponiblePara = 'alquiler' | 'venta' | 'ambas' | 'ninguna'
+export type EstadoOferta = 'disponible' | 'reservada' | 'en_proceso' | 'no_disponible'
 export type PagaExpensas = 'inquilino' | 'dueno'
 export type TipoIndice =
   | 'ICL'
@@ -128,7 +130,30 @@ export type Propiedad = {
   paga_expensas: PagaExpensas
   porcentaje_comision: number | null // NULL = hereda del dueño
   administrada: boolean // true = LG Prop la administra (comisión + liquidaciones + avisos)
+  // ── Publicación / cartera disponible (0032) ──
+  disponible_para: DisponiblePara
+  estado_oferta: EstadoOferta
+  precio_alquiler: number | null
+  moneda_alquiler: Moneda
+  precio_venta: number | null
+  moneda_venta: Moneda
+  descripcion_publicacion: string | null
+  ambientes: number | null
+  dormitorios: number | null
+  banos: number | null
+  superficie_m2: number | null
+  cochera: boolean
   notas: string | null
+  created_at: string
+}
+
+export type FotoPropiedad = {
+  id: string
+  propiedad_id: string
+  path: string
+  orden: number
+  es_portada: boolean
+  subido_por: string | null
   created_at: string
 }
 
@@ -621,11 +646,14 @@ export type Database = {
       gastos_lgprop: TableDef<GastoLgprop>
       recibos_reserva: TableDef<ReciboReserva>
       prospectos: TableDef<Prospecto>
+      fotos_propiedad: TableDef<FotoPropiedad>
     }
     Views: Record<string, never>
     Functions: Record<string, never>
     Enums: {
       estado_propiedad: EstadoPropiedad
+      disponible_para_propiedad: DisponiblePara
+      estado_oferta_propiedad: EstadoOferta
       paga_expensas: PagaExpensas
       tipo_indice: TipoIndice
       estado_contrato: EstadoContrato
