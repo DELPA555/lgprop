@@ -93,7 +93,7 @@ export default function Cartera(): JSX.Element {
         title="Cartera Disponible"
         subtitle="Propiedades que tenemos para ofrecer — alquiler y venta"
       />
-      <ConfigNotice />
+      {!isSupabaseConfigured && <ConfigNotice />}
 
       {/* Filtros */}
       <div className="card p-4 mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
