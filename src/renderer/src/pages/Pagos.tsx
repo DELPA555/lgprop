@@ -59,6 +59,28 @@ export default function Pagos(): JSX.Element {
   // Equivalente en pesos de un pago (monto_ars ya lo calcula el trigger; fallback al monto)
   const pesos = (p: Pago): number => p.monto_ars ?? p.monto
 
+  const propById = useMemo(() => {
+    const m: Record<string, Propiedad> = {}
+    for (const p of propiedades) m[p.id] = p
+    return m
+  }, [propiedades])
+  // Propiedad de un pago (vía su contrato) y si LG Prop la administra.
+  const propDePago = (contratoId: string): Propiedad | undefined =>
+    propById[contratoMap[contratoId]?.propiedad_id ?? '']
+  // Default true: filas/propiedades sin el flag (datos viejos) se consideran administradas.
+  const esAdministrada = (contratoId: string): boolean =>
+    propDePago(contratoId)?.administrada !== false
+
+  // Servicios que paga el inquilino — SOLO seguimiento/control. NUNCA se suman a
+  // comisión ni a liquidaciones (eso lo maneja el trigger de comisión y la pantalla
+  // de Liquidaciones, que no miran estos campos).
+  const SERVICIOS = [
+    { key: 'expensas_pagadas', aplica: 'aplica_expensas', label: 'Expensas' },
+    { key: 'luz_pagada', aplica: 'aplica_luz', label: 'Luz' },
+    { key: 'agua_pagada', aplica: 'aplica_agua', label: 'Agua' },
+    { key: 'gas_pagada', aplica: 'aplica_gas', label: 'Gas' }
+  ] as const
+
   const loadBase = async (): Promise<void> => {
     if (!isSupabaseConfigured) return
     const [c, p, i] = await Promise.all([
@@ -133,25 +155,33 @@ export default function Pagos(): JSX.Element {
     }
   }
 
+  // Solo propiedades administradas por LG Prop entran en la pantalla de Pagos
+  // (tabla y totales). Las no administradas no generan fila ni suman.
+  const pagosAdmin = useMemo(
+    () => pagos.filter((p) => esAdministrada(p.contrato_id)),
+    [pagos, propById, contratoMap]
+  )
+
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
-    return pagos
+    return pagosAdmin
       .filter((p) => (filtro === 'todos' ? true : p.estado === filtro))
       .filter((p) => (s ? contratoLabel(p.contrato_id).toLowerCase().includes(s) : true))
       .sort((a, b) => contratoLabel(a.contrato_id).localeCompare(contratoLabel(b.contrato_id)))
-  }, [pagos, q, filtro, contratoMap, propMap, inqMap])
+  }, [pagosAdmin, q, filtro, contratoMap, propMap, inqMap])
 
   const resumen = useMemo(() => {
-    // Totales en pesos consolidados (USD convertido vía monto_ars); no mezclamos monedas
-    const total = pagos.reduce((s, p) => s + pesos(p), 0)
-    const cobrado = pagos
+    // Totales en pesos consolidados (USD convertido vía monto_ars); no mezclamos monedas.
+    // Solo administradas (pagosAdmin).
+    const total = pagosAdmin.reduce((s, p) => s + pesos(p), 0)
+    const cobrado = pagosAdmin
       .filter((p) => p.estado === 'pagado')
       .reduce((s, p) => s + pesos(p), 0)
-    const atrasados = pagos.filter((p) => p.estado === 'atrasado').length
-    const pendientes = pagos.filter((p) => p.estado === 'pendiente').length
-    const hayUSD = pagos.some((p) => monedaDe(p.contrato_id) === 'USD')
+    const atrasados = pagosAdmin.filter((p) => p.estado === 'atrasado').length
+    const pendientes = pagosAdmin.filter((p) => p.estado === 'pendiente').length
+    const hayUSD = pagosAdmin.some((p) => monedaDe(p.contrato_id) === 'USD')
     return { total, cobrado, atrasados, pendientes, pendienteMonto: total - cobrado, hayUSD }
-  }, [pagos, contratoMap])
+  }, [pagosAdmin, contratoMap])
 
   // ── Generar las cuotas del mes para los contratos activos sin pago cargado ──
   const generar = async (): Promise<void> => {
@@ -160,7 +190,8 @@ export default function Pagos(): JSX.Element {
       const existentes = new Set(pagos.map((p) => p.contrato_id))
       const pastDue = mesISO < monthStart(currentYM())
       const nuevos = contratos
-        .filter((c) => c.estado === 'activo' && !existentes.has(c.id))
+        // Solo administradas: las no administradas no generan cuota en Pagos.
+        .filter((c) => c.estado === 'activo' && !existentes.has(c.id) && propById[c.propiedad_id]?.administrada !== false)
         .map((c) => ({
           contrato_id: c.id,
           mes_correspondiente: mesISO,
@@ -192,13 +223,13 @@ export default function Pagos(): JSX.Element {
     }
   }
 
-  const toggleExpensas = async (p: Pago): Promise<void> => {
-    const expensas_pagadas = !p.expensas_pagadas
-    setPagos((prev) => prev.map((x) => (x.id === p.id ? { ...x, expensas_pagadas } : x)))
-    const { error } = await supabase
-      .from('pagos')
-      .update({ expensas_pagadas })
-      .eq('id', p.id)
+  // Marca/desmarca un servicio (expensas/luz/agua/gas). SOLO seguimiento: no toca
+  // estado del alquiler, comisión ni liquidaciones. El trigger log_servicios_pago
+  // registra quién y cuándo en log_actividad.
+  const toggleServicio = async (p: Pago, key: (typeof SERVICIOS)[number]['key']): Promise<void> => {
+    const next = !p[key]
+    setPagos((prev) => prev.map((x) => (x.id === p.id ? { ...x, [key]: next } : x)))
+    const { error } = await supabase.from('pagos').update({ [key]: next } as Partial<Pago>).eq('id', p.id)
     if (error) {
       toast.error(error.message)
       void loadPagos()
@@ -320,7 +351,7 @@ export default function Pagos(): JSX.Element {
               <th className="px-4 py-3 font-medium text-right">Comisión</th>
               <th className="px-4 py-3 font-medium text-right">Neto dueño</th>
               <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium text-center">Expensas</th>
+              <th className="px-4 py-3 font-medium text-center">Servicios</th>
               <th className="px-4 py-3 font-medium">Fecha pago</th>
               <th className="px-4 py-3 font-medium text-right">Acciones</th>
             </tr>
@@ -393,13 +424,33 @@ export default function Pagos(): JSX.Element {
                       ))}
                     </div>
                   </td>
-                  <td className="px-4 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 accent-accent"
-                      checked={p.expensas_pagadas}
-                      onChange={() => toggleExpensas(p)}
-                    />
+                  <td className="px-4 py-2.5">
+                    {/* Chips de servicios — SOLO seguimiento (no afectan comisión/liquidación) */}
+                    <div className="flex flex-wrap gap-1 justify-center">
+                      {SERVICIOS.map((sv) => {
+                        const prop = propDePago(p.contrato_id)
+                        const aplica = (prop?.[sv.aplica] as boolean | undefined) !== false
+                        if (!aplica) {
+                          return (
+                            <span key={sv.key} className="chip chip-muted !py-0.5 opacity-60" title={`${sv.label}: no aplica a esta propiedad`}>
+                              {sv.label}: N/A
+                            </span>
+                          )
+                        }
+                        const pagado = !!p[sv.key]
+                        return (
+                          <button
+                            key={sv.key}
+                            type="button"
+                            onClick={() => toggleServicio(p, sv.key)}
+                            title={`${sv.label}: ${pagado ? 'pagado' : 'pendiente'} · clic para cambiar`}
+                            className={`chip ${pagado ? 'chip-ok' : 'chip-warn'} !py-0.5 cursor-pointer no-drag`}
+                          >
+                            {sv.label} {pagado ? '✓' : '•'}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </td>
                   <td className="px-4 py-2.5 text-ink-3 text-xs">
                     {p.fecha_pago ? formatDate(p.fecha_pago) : '—'}

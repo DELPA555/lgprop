@@ -130,6 +130,11 @@ export type Propiedad = {
   paga_expensas: PagaExpensas
   porcentaje_comision: number | null // NULL = hereda del dueño
   administrada: boolean // true = LG Prop la administra (comisión + liquidaciones + avisos)
+  // ── Qué servicios aplican (para "N/A" en Pagos · 0033). Default true. ──
+  aplica_expensas: boolean
+  aplica_luz: boolean
+  aplica_agua: boolean
+  aplica_gas: boolean
   // ── Publicación / cartera disponible (0032) ──
   disponible_para: DisponiblePara
   estado_oferta: EstadoOferta
@@ -221,7 +226,12 @@ export type Pago = {
   monto: number
   fecha_pago: string | null
   estado: EstadoPago
+  // ── Servicios pagados por el inquilino (SOLO seguimiento · 0033).
+  //    NUNCA entran en comisión ni liquidaciones. ──
   expensas_pagadas: boolean
+  luz_pagada: boolean
+  agua_pagada: boolean
+  gas_pagada: boolean
   porcentaje_comision_aplicado: number
   monto_comision: number
   monto_neto: number

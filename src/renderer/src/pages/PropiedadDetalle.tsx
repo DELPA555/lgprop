@@ -118,6 +118,21 @@ export default function PropiedadDetalle(): JSX.Element {
     toast.success(next ? 'Propiedad marcada como administrada' : 'Propiedad marcada como no administrada')
   }
 
+  // Qué servicios aplican a esta propiedad (controla los chips "N/A" en Pagos).
+  const SERVICIOS_APLICA = [
+    { key: 'aplica_expensas', label: 'Expensas' },
+    { key: 'aplica_luz', label: 'Luz' },
+    { key: 'aplica_agua', label: 'Agua' },
+    { key: 'aplica_gas', label: 'Gas' }
+  ] as const
+  const toggleAplicaServicio = async (key: (typeof SERVICIOS_APLICA)[number]['key']): Promise<void> => {
+    if (!prop) return
+    const next = !(prop[key] as boolean)
+    setProp({ ...prop, [key]: next })
+    const { error } = await supabase.from('propiedades').update({ [key]: next } as Partial<Propiedad>).eq('id', prop.id)
+    if (error) { toast.error(error.message); setProp({ ...prop, [key]: !next }) }
+  }
+
   const toggleAdministrada = (): void => {
     if (!prop) return
     // Al desmarcar con contratos activos, confirmar qué implica.
@@ -340,6 +355,31 @@ export default function PropiedadDetalle(): JSX.Element {
           {/* Publicación / Cartera disponible */}
           <div className="mb-5">
             <PublicacionSection prop={prop} onSaved={load} />
+          </div>
+
+          {/* Servicios que aplican (controla los chips de seguimiento en Pagos) */}
+          <div className="card p-5 mb-5">
+            <h2 className="text-sm font-semibold text-white">Servicios que aplican</h2>
+            <p className="text-xs text-ink-3 mt-0.5 mb-3">
+              Marcá qué servicios paga el inquilino en esta propiedad. Los desmarcados aparecen como
+              “N/A” en Pagos. Es solo seguimiento: no afecta la comisión ni las liquidaciones.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {SERVICIOS_APLICA.map((sv) => {
+                const on = (prop[sv.key] as boolean | undefined) !== false
+                return (
+                  <button
+                    key={sv.key}
+                    type="button"
+                    onClick={() => toggleAplicaServicio(sv.key)}
+                    className={`chip ${on ? 'chip-ok' : 'chip-muted'} cursor-pointer`}
+                    title={on ? `${sv.label}: aplica` : `${sv.label}: no aplica (N/A)`}
+                  >
+                    {sv.label} {on ? '✓' : '— N/A'}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {/* Dueño (transferencias) + Garante del contrato activo */}
