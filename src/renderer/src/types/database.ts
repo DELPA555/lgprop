@@ -186,7 +186,7 @@ export type Contrato = {
   fecha_devolucion_deposito: string | null
   motivo_finalizacion: string | null
   confeccionado_por: string | null // usuarios_equipo.id
-  cobra_comision: boolean // false = seguimiento interno, nunca genera comisión (0034)
+  carga_seguimiento: boolean // true = contrato histórico; exime SOLO el honorario de operación (0036)
   notas: string | null
   created_at: string
 }

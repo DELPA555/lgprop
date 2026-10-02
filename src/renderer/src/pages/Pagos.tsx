@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Pencil, Search, Loader2, Wallet, Receipt } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
-import type { Pago, Contrato, Propiedad, Inquilino, EstadoPago, Dueno } from '@/types/database'
+import type { Pago, Contrato, Propiedad, Inquilino, EstadoPago } from '@/types/database'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
 import Modal from '@/components/ui/Modal'
@@ -29,7 +29,6 @@ export default function Pagos(): JSX.Element {
   const [pagos, setPagos] = useState<Pago[]>([])
   const [contratos, setContratos] = useState<Contrato[]>([])
   const [propiedades, setPropiedades] = useState<Propiedad[]>([])
-  const [duenos, setDuenos] = useState<Dueno[]>([])
   const [inquilinos, setInquilinos] = useState<Inquilino[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -77,23 +76,6 @@ export default function Pagos(): JSX.Element {
   const esAdministrada = (contratoId: string): boolean =>
     propDePago(contratoId)?.administrada !== false
 
-  const duenoPctById = useMemo(() => {
-    const m: Record<string, number> = {}
-    for (const d of duenos) m[d.id] = d.porcentaje_comision ?? 0
-    return m
-  }, [duenos])
-  // % de comisión CONFIGURADO (propiedad → si no, dueño). Dato de referencia,
-  // independiente de si el contrato cobra comisión o no.
-  const pctConfigurado = (contratoId: string): number => {
-    const c = contratoMap[contratoId]
-    const prop = propById[c?.propiedad_id ?? '']
-    if (prop?.porcentaje_comision != null) return prop.porcentaje_comision
-    const duenoId = prop?.dueno_id ?? c?.dueno_id
-    return duenoId ? duenoPctById[duenoId] ?? 0 : 0
-  }
-  // ¿El contrato no cobra comisión (seguimiento)? → comisión $0 pero el % sigue existiendo.
-  const noCobraComision = (contratoId: string): boolean => contratoMap[contratoId]?.cobra_comision === false
-
   // Servicios que paga el inquilino — SOLO seguimiento/control. NUNCA se suman a
   // comisión ni a liquidaciones (eso lo maneja el trigger de comisión y la pantalla
   // de Liquidaciones, que no miran estos campos).
@@ -106,16 +88,14 @@ export default function Pagos(): JSX.Element {
 
   const loadBase = async (): Promise<void> => {
     if (!isSupabaseConfigured) return
-    const [c, p, i, d] = await Promise.all([
+    const [c, p, i] = await Promise.all([
       supabase.from('contratos').select('*'),
       supabase.from('propiedades').select('*'),
-      supabase.from('inquilinos').select('*'),
-      supabase.from('duenos').select('id, porcentaje_comision')
+      supabase.from('inquilinos').select('*')
     ])
     setContratos(c.data ?? [])
     setPropiedades(p.data ?? [])
     setInquilinos(i.data ?? [])
-    setDuenos((d.data ?? []) as Dueno[])
   }
 
   const loadPagos = async (): Promise<void> => {
@@ -451,18 +431,13 @@ export default function Pagos(): JSX.Element {
                   <td className="px-4 py-2.5 text-right text-warn/90 num text-xs">
                     <div className="flex items-center justify-end gap-1.5">
                       <span>
-                        {noCobraComision(p.contrato_id) || p.comision_percibida === false
+                        {p.comision_percibida === false
                           ? formatMoneda(0, monedaDe(p.contrato_id))
                           : p.monto_comision > 0
                             ? formatMoneda(p.monto_comision, monedaDe(p.contrato_id))
                             : '—'}
                       </span>
-                      {noCobraComision(p.contrato_id) && (
-                        <span className="chip chip-muted !py-0 !px-1 text-[9px]" title="Contrato de seguimiento: no cobra comisión">
-                          exento
-                        </span>
-                      )}
-                      {!noCobraComision(p.contrato_id) && (p.comision_manual != null || p.comision_percibida === false) && (
+                      {(p.comision_manual != null || p.comision_percibida === false) && (
                         <span className="chip chip-info !py-0 !px-1 text-[9px]" title="Comisión corregida a mano">
                           ✎ manual
                         </span>
@@ -475,14 +450,10 @@ export default function Pagos(): JSX.Element {
                         <Pencil size={12} />
                       </button>
                     </div>
-                    {/* El % configurado de la propiedad queda visible aunque el contrato no cobre */}
-                    {noCobraComision(p.contrato_id) && pctConfigurado(p.contrato_id) > 0 ? (
-                      <div className="text-[10px] text-ink-3" title="El contrato no cobra comisión (seguimiento); el % configurado de la propiedad queda intacto">
-                        {pctConfigurado(p.contrato_id)}% configurado
-                      </div>
-                    ) : p.comision_manual == null && p.comision_percibida !== false && p.porcentaje_comision_aplicado > 0 ? (
+                    {/* % solo cuando la comisión es automática (sin corrección manual) */}
+                    {p.comision_manual == null && p.comision_percibida !== false && p.porcentaje_comision_aplicado > 0 && (
                       <div className="text-[10px] text-ink-3">{p.porcentaje_comision_aplicado}%</div>
-                    ) : null}
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-right text-ok num">
                     {formatMoneda(p.monto_neto, monedaDe(p.contrato_id))}

@@ -111,7 +111,7 @@ const EMPTY: Form = {
   fecha_devolucion_deposito: null,
   motivo_finalizacion: null,
   confeccionado_por: null,
-  cobra_comision: true,
+  carga_seguimiento: false,
   notas: ''
 }
 
@@ -573,7 +573,7 @@ export default function Contratos(): JSX.Element {
           : null,
       motivo_finalizacion: form.estado !== 'activo' ? form.motivo_finalizacion || null : null,
       confeccionado_por: form.confeccionado_por || null,
-      cobra_comision: form.cobra_comision !== false,
+      carga_seguimiento: form.carga_seguimiento === true,
       notas: form.notas || null
     }
     let contratoId = editing?.id
@@ -1260,18 +1260,19 @@ export default function Contratos(): JSX.Element {
               )}
           </div>
 
-          {/* Comisión: contratos de solo seguimiento no generan comisión */}
+          {/* Seguimiento histórico: exime SOLO el honorario de operación */}
           <label className="flex items-start gap-2 text-sm text-ink-2 cursor-pointer no-drag rounded-lg border border-border p-3">
             <input
               type="checkbox"
-              checked={form.cobra_comision === false}
-              onChange={(e) => patch({ cobra_comision: !e.target.checked })}
+              checked={form.carga_seguimiento === true}
+              onChange={(e) => patch({ carga_seguimiento: e.target.checked })}
               className="accent-accent mt-0.5"
             />
             <span>
-              Este contrato <span className="text-ink">no genera comisión</span> — seguimiento interno
+              Contrato cargado para <span className="text-ink">seguimiento histórico</span> — no genera honorario por operación
               <span className="block text-[11px] text-ink-3 mt-0.5">
-                Todos sus pagos quedan con comisión $0 automáticamente (no entra en Liquidaciones ni Sociedad).
+                Solo exime el honorario único de la operación (ya pasó antes del sistema). La comisión mensual se
+                sigue cobrando normalmente si la propiedad está administrada.
               </span>
             </span>
           </label>
