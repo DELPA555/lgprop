@@ -37,6 +37,11 @@ export default function Pagos(): JSX.Element {
   const [editing, setEditing] = useState<Pago | null>(null)
   const [form, setForm] = useState<Partial<Pago>>({})
   const [saving, setSaving] = useState(false)
+  // Modal de corrección manual de comisión
+  const [comModal, setComModal] = useState<Pago | null>(null)
+  const [comMonto, setComMonto] = useState('')
+  const [comPercibida, setComPercibida] = useState(true)
+  const [comSaving, setComSaving] = useState(false)
 
   const mesISO = monthStart(ym)
 
@@ -236,6 +241,31 @@ export default function Pagos(): JSX.Element {
     }
   }
 
+  // ── Corrección manual de la comisión percibida en un pago ──
+  // Precarga el valor efectivo actual (manual si existe; si no, el automático).
+  const abrirComision = (p: Pago): void => {
+    setComModal(p)
+    setComPercibida(p.comision_percibida !== false)
+    setComMonto(String(p.comision_manual ?? p.monto_comision ?? 0))
+  }
+  const guardarComision = async (): Promise<void> => {
+    if (!comModal) return
+    // percibida=false → $0 explícito. percibida=true + campo vacío → null (vuelve al automático).
+    const manual = comPercibida ? (comMonto.trim() === '' ? null : Number(comMonto)) : 0
+    if (comPercibida && manual != null && (!Number.isFinite(manual) || manual < 0))
+      return void toast.error('Ingresá un monto de comisión válido')
+    setComSaving(true)
+    const { error } = await supabase
+      .from('pagos')
+      .update({ comision_manual: manual, comision_percibida: comPercibida })
+      .eq('id', comModal.id)
+    setComSaving(false)
+    if (error) return void toast.error(error.message)
+    toast.success('Comisión actualizada')
+    setComModal(null)
+    await loadPagos()
+  }
+
   const openEdit = (p: Pago): void => {
     setEditing(p)
     setForm({ ...p })
@@ -399,10 +429,29 @@ export default function Pagos(): JSX.Element {
                     )}
                   </td>
                   <td className="px-4 py-2.5 text-right text-warn/90 num text-xs">
-                    {p.monto_comision > 0
-                      ? formatMoneda(p.monto_comision, monedaDe(p.contrato_id))
-                      : '—'}
-                    {p.porcentaje_comision_aplicado > 0 && (
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span>
+                        {p.comision_percibida === false
+                          ? formatMoneda(0, monedaDe(p.contrato_id))
+                          : p.monto_comision > 0
+                            ? formatMoneda(p.monto_comision, monedaDe(p.contrato_id))
+                            : '—'}
+                      </span>
+                      {(p.comision_manual != null || p.comision_percibida === false) && (
+                        <span className="chip chip-info !py-0 !px-1 text-[9px]" title="Comisión corregida a mano">
+                          ✎ manual
+                        </span>
+                      )}
+                      <button
+                        onClick={() => abrirComision(p)}
+                        title="Editar comisión percibida"
+                        className="p-0.5 rounded text-ink-3 hover:text-accent no-drag"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                    </div>
+                    {/* % solo cuando la comisión es automática (sin corrección manual) */}
+                    {p.comision_manual == null && p.comision_percibida !== false && p.porcentaje_comision_aplicado > 0 && (
                       <div className="text-[10px] text-ink-3">{p.porcentaje_comision_aplicado}%</div>
                     )}
                   </td>
@@ -550,6 +599,61 @@ export default function Pagos(): JSX.Element {
                 onChange={(e) => setForm((f) => ({ ...f, notas: e.target.value }))}
               />
             </Field>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal: corrección manual de comisión */}
+      <Modal
+        open={!!comModal}
+        title="Comisión percibida"
+        onClose={() => setComModal(null)}
+        footer={
+          <>
+            <button
+              onClick={() => setComModal(null)}
+              className="px-4 py-2 rounded-lg text-sm text-zinc-300 hover:text-white border border-border"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={guardarComision}
+              disabled={comSaving}
+              className="btn-primary px-4 py-2 rounded-lg text-sm no-drag disabled:opacity-50"
+            >
+              {comSaving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </>
+        }
+      >
+        {comModal && (
+          <div className="space-y-4">
+            <p className="text-xs text-ink-3">
+              Corregí la comisión <span className="text-ink-2">realmente percibida</span> en este pago.
+              Pisa el cálculo automático en Liquidaciones, Sociedad y reportes.
+            </p>
+            <label className="flex items-center gap-2 text-sm text-ink-2 cursor-pointer no-drag">
+              <input
+                type="checkbox"
+                checked={comPercibida}
+                onChange={(e) => setComPercibida(e.target.checked)}
+                className="accent-accent"
+              />
+              ¿Se percibió comisión en este pago?
+            </label>
+            {comPercibida ? (
+              <Field label={`Monto de comisión (${monedaDe(comModal.contrato_id)})`}>
+                <TextInput
+                  type="number"
+                  value={comMonto}
+                  onChange={(e) => setComMonto(e.target.value)}
+                  placeholder="0"
+                />
+                <p className="text-[11px] text-ink-3 mt-1">Dejalo vacío para volver al cálculo automático.</p>
+              </Field>
+            ) : (
+              <p className="text-sm text-warn">Se registrará comisión $0 para este pago.</p>
+            )}
           </div>
         )}
       </Modal>

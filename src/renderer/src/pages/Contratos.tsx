@@ -111,6 +111,7 @@ const EMPTY: Form = {
   fecha_devolucion_deposito: null,
   motivo_finalizacion: null,
   confeccionado_por: null,
+  cobra_comision: true,
   notas: ''
 }
 
@@ -572,6 +573,7 @@ export default function Contratos(): JSX.Element {
           : null,
       motivo_finalizacion: form.estado !== 'activo' ? form.motivo_finalizacion || null : null,
       confeccionado_por: form.confeccionado_por || null,
+      cobra_comision: form.cobra_comision !== false,
       notas: form.notas || null
     }
     let contratoId = editing?.id
@@ -1257,6 +1259,22 @@ export default function Contratos(): JSX.Element {
                 </div>
               )}
           </div>
+
+          {/* Comisión: contratos de solo seguimiento no generan comisión */}
+          <label className="flex items-start gap-2 text-sm text-ink-2 cursor-pointer no-drag rounded-lg border border-border p-3">
+            <input
+              type="checkbox"
+              checked={form.cobra_comision === false}
+              onChange={(e) => patch({ cobra_comision: !e.target.checked })}
+              className="accent-accent mt-0.5"
+            />
+            <span>
+              Este contrato <span className="text-ink">no genera comisión</span> — seguimiento interno
+              <span className="block text-[11px] text-ink-3 mt-0.5">
+                Todos sus pagos quedan con comisión $0 automáticamente (no entra en Liquidaciones ni Sociedad).
+              </span>
+            </span>
+          </label>
 
           <Field label="Confeccionado por">
             <Select

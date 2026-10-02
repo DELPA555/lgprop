@@ -186,6 +186,7 @@ export type Contrato = {
   fecha_devolucion_deposito: string | null
   motivo_finalizacion: string | null
   confeccionado_por: string | null // usuarios_equipo.id
+  cobra_comision: boolean // false = seguimiento interno, nunca genera comisión (0034)
   notas: string | null
   created_at: string
 }
@@ -233,7 +234,10 @@ export type Pago = {
   agua_pagada: boolean
   gas_pagada: boolean
   porcentaje_comision_aplicado: number
-  monto_comision: number
+  monto_comision: number // comisión EFECTIVA (manual si existe; si no, automática)
+  // ── Override manual de comisión (0034) ──
+  comision_manual: number | null // NULL = usar cálculo automático
+  comision_percibida: boolean // false = se percibió $0 explícitamente
   monto_neto: number
   cotizacion_usada: number | null
   monto_ars: number | null
