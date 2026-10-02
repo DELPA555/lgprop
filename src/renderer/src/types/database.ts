@@ -501,14 +501,16 @@ export type GastoSociedad = {
   created_at: string
 }
 
-export type EstadoHonorario = 'pendiente' | 'cobrado'
+export type EstadoHonorario = 'pendiente' | 'cobrado' | 'exento'
 export type HonorarioOperacion = {
   id: string
   contrato_id: string
-  monto: number
+  monto: number // sugerido (1 mes de alquiler)
+  monto_real: number | null // si no es null, pisa el sugerido en todos los cálculos (0034/0035)
   moneda: Moneda
   fecha_cobro: string | null
-  estado: EstadoHonorario
+  estado: EstadoHonorario // exento = no corresponde cobrar (no suma a Sociedad ni KPIs)
+  motivo_exento: string | null
   notas: string | null
   created_at: string
 }

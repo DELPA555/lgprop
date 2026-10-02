@@ -64,6 +64,12 @@ export default function Sociedad(): JSX.Element {
   const [gastos, setGastos] = useState<GastoSociedad[]>([])
   const [comisionTotal, setComisionTotal] = useState(0)
   const [honorarios, setHonorarios] = useState<HonorarioRow[]>([])
+  // Modal de edición de honorario (estado/exento/monto real)
+  const [honModal, setHonModal] = useState<HonorarioRow | null>(null)
+  const [honEstado, setHonEstado] = useState<'pendiente' | 'cobrado' | 'exento'>('pendiente')
+  const [honMotivo, setHonMotivo] = useState('')
+  const [honMonto, setHonMonto] = useState('')
+  const [honSaving, setHonSaving] = useState(false)
   const [cotizacion, setCotizacion] = useState(1)
   const [liquidacion, setLiquidacion] = useState<LiquidacionSocios | null>(null)
   const [historial, setHistorial] = useState<LiquidacionSocios[]>([])
@@ -161,7 +167,9 @@ export default function Sociedad(): JSX.Element {
     for (const h of honorarios) {
       if (h.estado !== 'cobrado' || !h.fecha_cobro) continue
       if (h.fecha_cobro < s || h.fecha_cobro > e) continue
-      total += h.moneda === 'USD' ? h.monto * cotizacion : h.monto
+      // Monto REAL si fue editado; si no, el sugerido. (Exento nunca es 'cobrado'.)
+      const efectivo = h.monto_real ?? h.monto
+      total += h.moneda === 'USD' ? efectivo * cotizacion : efectivo
     }
     return total
   }, [honorarios, ym, cotizacion])
@@ -300,18 +308,39 @@ export default function Sociedad(): JSX.Element {
   }
 
   // ── Honorarios ──
-  const toggleHonorario = async (h: HonorarioRow): Promise<void> => {
-    const cobrado = h.estado !== 'cobrado'
-    const { error } = await supabase
-      .from('honorarios_operacion')
-      .update({
-        estado: cobrado ? 'cobrado' : 'pendiente',
-        fecha_cobro: cobrado ? new Date().toISOString().slice(0, 10) : null
-      })
-      .eq('id', h.id)
+  // Abre el modal precargando estado + monto sugerido como punto de partida.
+  const abrirHonorario = (h: HonorarioRow): void => {
+    setHonModal(h)
+    setHonEstado(h.estado)
+    setHonMotivo(h.motivo_exento ?? '')
+    setHonMonto(String(h.monto_real ?? h.monto))
+  }
+  const guardarHonorario = async (): Promise<void> => {
+    if (!honModal) return
+    setHonSaving(true)
+    // Si no cambió respecto del sugerido (o quedó vacío) → null = usar sugerido.
+    const n = honMonto.trim() === '' ? null : Number(honMonto)
+    const montoReal = n == null || n === honModal.monto ? null : n
+    const patch = {
+      estado: honEstado,
+      monto_real: montoReal,
+      motivo_exento: honEstado === 'exento' ? honMotivo.trim() || null : null,
+      fecha_cobro:
+        honEstado === 'cobrado'
+          ? honModal.fecha_cobro ?? new Date().toISOString().slice(0, 10)
+          : honEstado === 'exento'
+            ? null
+            : honModal.fecha_cobro
+    }
+    const { error } = await supabase.from('honorarios_operacion').update(patch).eq('id', honModal.id)
+    setHonSaving(false)
     if (error) return void toast.error(error.message)
+    toast.success('Honorario actualizado')
+    setHonModal(null)
     void load()
   }
+  // Monto efectivo (real si existe; 0 si exento) para mostrar.
+  const honEfectivo = (h: HonorarioRow): number => (h.estado === 'exento' ? 0 : h.monto_real ?? h.monto)
 
   const honLabel = (h: HonorarioRow): string => {
     const dir = h.contratos?.propiedades?.direccion
@@ -326,6 +355,7 @@ export default function Sociedad(): JSX.Element {
       h.fecha_cobro >= monthStart(ym) &&
       h.fecha_cobro <= monthEnd(ym)
   )
+  const exentos = honorarios.filter((h) => h.estado === 'exento')
 
   const deudor = view.deudorId ? socioMap[view.deudorId] : null
   const acreedor = view.acreedorId ? socioMap[view.acreedorId] : null
@@ -627,33 +657,50 @@ export default function Sociedad(): JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {pendientes.length === 0 && cobradosPeriodo.length === 0 ? (
+              {pendientes.length === 0 && cobradosPeriodo.length === 0 && exentos.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-ink-3">
-                    Sin honorarios pendientes ni cobrados en este período.
+                    Sin honorarios pendientes, cobrados ni exentos en este período.
                   </td>
                 </tr>
               ) : (
-                [...pendientes, ...cobradosPeriodo].map((h) => (
+                [...pendientes, ...cobradosPeriodo, ...exentos].map((h) => (
                   <tr key={h.id} className="border-b border-border/60">
                     <td className="px-4 py-2.5 text-ink">{honLabel(h)}</td>
                     <td className="px-4 py-2.5 text-right num text-ink-2">
-                      {formatMoneda(h.monto, h.moneda)}
+                      {h.estado === 'exento' ? (
+                        <span className="text-ink-3">—</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5">
+                          {h.monto_real != null && (
+                            <span className="line-through text-ink-3 text-[11px]">
+                              {formatMoneda(h.monto, h.moneda)}
+                            </span>
+                          )}
+                          <span>{formatMoneda(h.monto_real ?? h.monto, h.moneda)}</span>
+                          {h.monto_real != null && (
+                            <span className="chip chip-info !py-0 !px-1 text-[9px]" title="Monto real editado">✎</span>
+                          )}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5">
-                      <EstadoChip tone={h.estado === 'cobrado' ? 'ok' : 'warn'}>
-                        {h.estado === 'cobrado' ? 'Cobrado' : 'Pendiente'}
+                      <EstadoChip tone={h.estado === 'cobrado' ? 'ok' : h.estado === 'exento' ? 'muted' : 'warn'}>
+                        {h.estado === 'cobrado' ? 'Cobrado' : h.estado === 'exento' ? 'Exento' : 'Pendiente'}
                       </EstadoChip>
+                      {h.estado === 'exento' && h.motivo_exento && (
+                        <div className="text-[10px] text-ink-3 mt-0.5">{h.motivo_exento}</div>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 text-ink-3 text-xs">
                       {h.fecha_cobro ? formatDate(h.fecha_cobro) : '—'}
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <button
-                        onClick={() => toggleHonorario(h)}
-                        className="text-xs px-2.5 py-1 rounded-md border border-border text-ink-2 hover:text-ink"
+                        onClick={() => abrirHonorario(h)}
+                        className="text-xs px-2.5 py-1 rounded-md border border-border text-ink-2 hover:text-ink no-drag"
                       >
-                        {h.estado === 'cobrado' ? 'Marcar pendiente' : 'Marcar cobrado'}
+                        Editar
                       </button>
                     </td>
                   </tr>
@@ -835,6 +882,83 @@ export default function Sociedad(): JSX.Element {
         onConfirm={cerrarPeriodo}
         onClose={() => setCerrarConfirm(false)}
       />
+
+      {/* Modal: editar honorario (estado / exento / monto real) */}
+      <Modal
+        open={!!honModal}
+        title="Editar honorario"
+        onClose={() => setHonModal(null)}
+        footer={
+          <>
+            <button
+              onClick={() => setHonModal(null)}
+              className="px-4 py-2 rounded-lg text-sm text-zinc-300 hover:text-white border border-border"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={guardarHonorario}
+              disabled={honSaving}
+              className="btn-primary px-4 py-2 rounded-lg text-sm no-drag disabled:opacity-50"
+            >
+              {honSaving ? 'Guardando…' : 'Guardar'}
+            </button>
+          </>
+        }
+      >
+        {honModal && (
+          <div className="space-y-4">
+            <p className="text-xs text-ink-3">{honLabel(honModal)}</p>
+            <Field label="Estado">
+              <div className="flex gap-2">
+                {(['pendiente', 'cobrado', 'exento'] as const).map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => setHonEstado(e)}
+                    className={`chip cursor-pointer no-drag ${
+                      honEstado === e
+                        ? e === 'cobrado'
+                          ? 'chip-ok'
+                          : e === 'exento'
+                            ? 'chip-muted'
+                            : 'chip-warn'
+                        : 'chip-muted opacity-50'
+                    }`}
+                  >
+                    {e === 'cobrado' ? 'Cobrado' : e === 'exento' ? 'Exento' : 'Pendiente'}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            {honEstado === 'exento' ? (
+              <Field label="Motivo (opcional)">
+                <TextInput
+                  value={honMotivo}
+                  onChange={(e) => setHonMotivo(e.target.value)}
+                  placeholder="Ej: cortesía, conocido"
+                />
+                <p className="text-[11px] text-ink-3 mt-1">
+                  Un honorario exento no suma a Sociedad ni a los pendientes de cobro.
+                </p>
+              </Field>
+            ) : (
+              <Field label={`Monto real cobrado (${honModal.moneda})`}>
+                <TextInput
+                  type="number"
+                  value={honMonto}
+                  onChange={(e) => setHonMonto(e.target.value)}
+                  placeholder="0"
+                />
+                <p className="text-[11px] text-ink-3 mt-1">
+                  Sugerido: {formatMoneda(honModal.monto, honModal.moneda)}. Dejalo igual al sugerido para
+                  usar el cálculo automático.
+                </p>
+              </Field>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

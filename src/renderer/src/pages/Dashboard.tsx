@@ -319,7 +319,8 @@ export default function Dashboard(): JSX.Element {
       if (isSocio) {
         try {
           const [{ data: hon }, { data: cot }] = await Promise.all([
-            supabase.from('honorarios_operacion').select('monto, moneda').eq('estado', 'pendiente'),
+            // Solo 'pendiente' (los exentos no cuentan como por cobrar)
+            supabase.from('honorarios_operacion').select('monto, monto_real, moneda').eq('estado', 'pendiente'),
             supabase
               .from('cotizaciones_dolar')
               .select('tipo, venta')
@@ -330,7 +331,8 @@ export default function Dashboard(): JSX.Element {
           const rate = blue?.venta ?? 1
           for (const h of hon ?? []) {
             honorariosPendientes++
-            honorariosPendientesMonto += h.moneda === 'USD' ? h.monto * rate : h.monto
+            const efectivo = h.monto_real ?? h.monto // monto real si fue editado
+            honorariosPendientesMonto += h.moneda === 'USD' ? efectivo * rate : efectivo
           }
         } catch {
           // sin acceso / sin datos
