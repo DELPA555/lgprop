@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { DatabaseZap, LogOut, ShieldAlert, Loader2 } from 'lucide-react'
 import Layout from './components/layout/Layout'
@@ -5,32 +6,47 @@ import UpdateNotice from './components/UpdateNotice'
 import { ToastProvider } from './components/ui/Toast'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { isSupabaseConfigured } from './lib/supabase/client'
+// Login va antes del gate de autenticación: se mantiene eager para no mostrar
+// un parpadeo de carga en la pantalla de ingreso.
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Duenos from './pages/Duenos'
-import Inquilinos from './pages/Inquilinos'
-import Propiedades from './pages/Propiedades'
-import PropiedadDetalle from './pages/PropiedadDetalle'
-import Contratos from './pages/Contratos'
-import Mantenimiento from './pages/Mantenimiento'
-import Indices from './pages/Indices'
-import Actualizaciones from './pages/Actualizaciones'
-import Pagos from './pages/Pagos'
-import Liquidaciones from './pages/Liquidaciones'
-import Equipo from './pages/Equipo'
-import Ajustes from './pages/Ajustes'
-import Actividad from './pages/Actividad'
-import Consorcios from './pages/Consorcios'
-import ConsorcioDetalle from './pages/ConsorcioDetalle'
-import Tareas from './pages/Tareas'
-import Prospectos from './pages/Prospectos'
-import Interesados from './pages/Interesados'
-import Agenda from './pages/Agenda'
-import Visitas from './pages/Visitas'
-import Contabilidad from './pages/Contabilidad'
-import Sociedad from './pages/Sociedad'
-import RecibosReserva from './pages/RecibosReserva'
-import Cartera from './pages/Cartera'
+
+// Resto de los módulos: carga diferida por ruta (code-splitting). Antes los 25
+// módulos + pdf-lib + pdfjs entraban al bundle inicial (~3,3 MB en un solo .js);
+// ahora cada pantalla trae su propio chunk al abrirse por primera vez, y el
+// arranque de la app es mucho más liviano.
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Duenos = lazy(() => import('./pages/Duenos'))
+const Inquilinos = lazy(() => import('./pages/Inquilinos'))
+const Propiedades = lazy(() => import('./pages/Propiedades'))
+const PropiedadDetalle = lazy(() => import('./pages/PropiedadDetalle'))
+const Contratos = lazy(() => import('./pages/Contratos'))
+const Mantenimiento = lazy(() => import('./pages/Mantenimiento'))
+const Indices = lazy(() => import('./pages/Indices'))
+const Actualizaciones = lazy(() => import('./pages/Actualizaciones'))
+const Pagos = lazy(() => import('./pages/Pagos'))
+const Liquidaciones = lazy(() => import('./pages/Liquidaciones'))
+const Equipo = lazy(() => import('./pages/Equipo'))
+const Ajustes = lazy(() => import('./pages/Ajustes'))
+const Actividad = lazy(() => import('./pages/Actividad'))
+const Consorcios = lazy(() => import('./pages/Consorcios'))
+const ConsorcioDetalle = lazy(() => import('./pages/ConsorcioDetalle'))
+const Tareas = lazy(() => import('./pages/Tareas'))
+const Prospectos = lazy(() => import('./pages/Prospectos'))
+const Interesados = lazy(() => import('./pages/Interesados'))
+const Agenda = lazy(() => import('./pages/Agenda'))
+const Visitas = lazy(() => import('./pages/Visitas'))
+const Contabilidad = lazy(() => import('./pages/Contabilidad'))
+const Sociedad = lazy(() => import('./pages/Sociedad'))
+const RecibosReserva = lazy(() => import('./pages/RecibosReserva'))
+const Cartera = lazy(() => import('./pages/Cartera'))
+
+function RouteFallback(): JSX.Element {
+  return (
+    <div className="flex items-center justify-center py-20 text-zinc-500">
+      <Loader2 size={20} className="animate-spin" />
+    </div>
+  )
+}
 
 function FullScreenConfig(): JSX.Element {
   return (
@@ -76,6 +92,7 @@ function AppRoutes(): JSX.Element {
   const { isAdmin, isSocio } = useAuth()
   return (
     <Layout>
+      <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/propiedades" element={<Propiedades />} />
@@ -110,6 +127,7 @@ function AppRoutes(): JSX.Element {
         />
         <Route path="*" element={<Dashboard />} />
       </Routes>
+      </Suspense>
     </Layout>
   )
 }

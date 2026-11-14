@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Plus, Pencil, Trash2, Search, Building2 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type { Dueno } from '@/types/database'
+import { useDuenos, usePropiedades, useInvalidateEntities, qk } from '@/hooks/entities'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
 import Modal from '@/components/ui/Modal'
@@ -23,8 +24,9 @@ const EMPTY: Form = {
 
 export default function Duenos(): JSX.Element {
   const toast = useToast()
-  const [rows, setRows] = useState<Dueno[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: rows = [], isLoading: loading } = useDuenos()
+  const { data: propiedades = [] } = usePropiedades()
+  const invalidate = useInvalidateEntities()
   const [q, setQ] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Dueno | null>(null)
@@ -32,28 +34,13 @@ export default function Duenos(): JSX.Element {
   const [saving, setSaving] = useState(false)
   const [delTarget, setDelTarget] = useState<Dueno | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [propCounts, setPropCounts] = useState<Record<string, number>>({})
 
-  const load = async (): Promise<void> => {
-    if (!isSupabaseConfigured) {
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    const { data, error } = await supabase.from('duenos').select('*').order('nombre')
-    if (error) toast.error(error.message)
-    setRows(data ?? [])
-    // Conteo de propiedades por dueño (para la columna)
-    const { data: props } = await supabase.from('propiedades').select('dueno_id')
+  // Conteo de propiedades por dueño (derivado de la caché compartida de propiedades)
+  const propCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const p of props ?? []) if (p.dueno_id) counts[p.dueno_id] = (counts[p.dueno_id] ?? 0) + 1
-    setPropCounts(counts)
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    void load()
-  }, [])
+    for (const p of propiedades) if (p.dueno_id) counts[p.dueno_id] = (counts[p.dueno_id] ?? 0) + 1
+    return counts
+  }, [propiedades])
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -101,7 +88,7 @@ export default function Duenos(): JSX.Element {
     }
     toast.success(editing ? 'Dueño actualizado' : 'Dueño creado')
     setModalOpen(false)
-    void load()
+    invalidate(qk.duenos)
   }
 
   const doDelete = async (): Promise<void> => {
@@ -119,7 +106,7 @@ export default function Duenos(): JSX.Element {
     }
     toast.success('Dueño eliminado')
     setDelTarget(null)
-    void load()
+    invalidate(qk.duenos)
   }
 
   return (

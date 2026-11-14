@@ -149,72 +149,72 @@ export default function PropiedadDetalle(): JSX.Element {
       return
     }
     setLoading(true)
-    const { data: p } = await supabase.from('propiedades').select('*').eq('id', id).maybeSingle()
-    setProp(p ?? null)
-    if (p?.dueno_id) {
-      const { data: d } = await supabase.from('duenos').select('*').eq('id', p.dueno_id).maybeSingle()
-      setDueno(d ?? null)
-    } else {
-      setDueno(null)
-    }
-    const { data: rec } = await supabase
-      .from('mantenimiento')
-      .select('*')
-      .eq('propiedad_id', id)
-      .order('fecha_reporte', { ascending: false })
-    setReclamos(rec ?? [])
-    const { data: seg } = await supabase
-      .from('seguros_propiedad')
-      .select('*')
-      .eq('propiedad_id', id)
-      .order('fecha_vencimiento')
-    setSeguros(seg ?? [])
-    const { data: ctr } = await supabase
-      .from('contratos')
-      .select('*')
-      .eq('propiedad_id', id)
-      .order('fecha_inicio', { ascending: false })
-    setContratos(ctr ?? [])
-    const ctrIds = (ctr ?? []).map((c) => c.id)
-    if (ctrIds.length > 0) {
-      const { data: act } = await supabase
-        .from('actualizaciones_contrato')
-        .select('contrato_id')
-        .eq('confirmado_por_usuario', false)
-        .in('contrato_id', ctrIds)
-      setPendientesSet(new Set((act ?? []).map((a) => a.contrato_id)))
-    } else {
-      setPendientesSet(new Set())
-    }
-    const inqIds = [...new Set((ctr ?? []).map((c) => c.inquilino_id))]
-    if (inqIds.length > 0) {
-      const { data: inqs } = await supabase.from('inquilinos').select('*').in('id', inqIds)
-      const m: Record<string, string> = {}
-      const full: Record<string, Inquilino> = {}
-      for (const i of inqs ?? []) {
-        m[i.id] = i.nombre
-        full[i.id] = i
-      }
-      setInqMap(m)
-      setInqDatos(full)
-    } else {
-      setInqMap({})
-      setInqDatos({})
-    }
-    setArchivosPorContrato(
-      await listarArchivosPorContratos((ctr ?? []).map((c) => c.id))
-    )
-    // Próximos eventos de agenda vinculados a esta propiedad (no cancelados, de hoy en adelante)
+    // Ola 1: todo lo que depende sólo de `id`, en paralelo (antes iba en serie).
     const desde = new Date()
     desde.setHours(0, 0, 0, 0)
-    const { data: evs } = await supabase
-      .from('eventos_agenda')
-      .select('*')
-      .eq('propiedad_id', id)
-      .neq('estado', 'cancelado')
-      .gte('fecha_hora', desde.toISOString())
-      .order('fecha_hora')
-    setEventos(evs ?? [])
+    const [pRes, recRes, segRes, ctrRes, evsRes] = await Promise.all([
+      supabase.from('propiedades').select('*').eq('id', id).maybeSingle(),
+      supabase
+        .from('mantenimiento')
+        .select('*')
+        .eq('propiedad_id', id)
+        .order('fecha_reporte', { ascending: false }),
+      supabase
+        .from('seguros_propiedad')
+        .select('*')
+        .eq('propiedad_id', id)
+        .order('fecha_vencimiento'),
+      supabase
+        .from('contratos')
+        .select('*')
+        .eq('propiedad_id', id)
+        .order('fecha_inicio', { ascending: false }),
+      supabase
+        .from('eventos_agenda')
+        .select('*')
+        .eq('propiedad_id', id)
+        .neq('estado', 'cancelado')
+        .gte('fecha_hora', desde.toISOString())
+        .order('fecha_hora')
+    ])
+    const p = pRes.data ?? null
+    setProp(p)
+    setReclamos(recRes.data ?? [])
+    setSeguros(segRes.data ?? [])
+    const ctr = ctrRes.data ?? []
+    setContratos(ctr)
+    setEventos(evsRes.data ?? [])
+
+    // Ola 2: lo que depende del dueño de la propiedad o de los contratos, también en paralelo.
+    const ctrIds = ctr.map((c) => c.id)
+    const inqIds = [...new Set(ctr.map((c) => c.inquilino_id))]
+    const [dRes, actRes, inqRes, archivos] = await Promise.all([
+      p?.dueno_id
+        ? supabase.from('duenos').select('*').eq('id', p.dueno_id).maybeSingle()
+        : Promise.resolve({ data: null as Dueno | null }),
+      ctrIds.length > 0
+        ? supabase
+            .from('actualizaciones_contrato')
+            .select('contrato_id')
+            .eq('confirmado_por_usuario', false)
+            .in('contrato_id', ctrIds)
+        : Promise.resolve({ data: [] as { contrato_id: string }[] }),
+      inqIds.length > 0
+        ? supabase.from('inquilinos').select('*').in('id', inqIds)
+        : Promise.resolve({ data: [] as Inquilino[] }),
+      listarArchivosPorContratos(ctrIds)
+    ])
+    setDueno(dRes.data ?? null)
+    setPendientesSet(new Set((actRes.data ?? []).map((a) => a.contrato_id)))
+    const m: Record<string, string> = {}
+    const full: Record<string, Inquilino> = {}
+    for (const i of inqRes.data ?? []) {
+      m[i.id] = i.nombre
+      full[i.id] = i
+    }
+    setInqMap(m)
+    setInqDatos(full)
+    setArchivosPorContrato(archivos)
     setLoading(false)
   }
 

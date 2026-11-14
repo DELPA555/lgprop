@@ -1,15 +1,17 @@
 // Cartera Disponible: "vidriera interna" de las propiedades ofrecidas (alquiler
 // y/o venta) con foto de portada, datos clave y filtros. Click → detalle.
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Building2, Bed, Bath, Maximize, Car, ImageOff } from 'lucide-react'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
-import type { DisponiblePara, EstadoOferta, FotoPropiedad, Propiedad } from '@/types/database'
+import { isSupabaseConfigured } from '@/lib/supabase/client'
+import type { DisponiblePara, EstadoOferta, FotoPropiedad } from '@/types/database'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
 import { Field, Select, TextInput } from '@/components/ui/Field'
 import { listarFotosDe, urlsFirmadasFotos, portadaDe } from '@/lib/fotosPropiedad'
 import { DISPONIBLE_LABEL, ESTADO_OFERTA_LABEL, preciosDe } from '@/lib/fichaPropiedad'
+import { usePropiedades } from '@/hooks/entities'
 
 const ESTADO_CHIP: Record<EstadoOferta, string> = {
   disponible: 'chip-ok',
@@ -20,10 +22,6 @@ const ESTADO_CHIP: Record<EstadoOferta, string> = {
 
 export default function Cartera(): JSX.Element {
   const navigate = useNavigate()
-  const [props, setProps] = useState<Propiedad[]>([])
-  const [portadas, setPortadas] = useState<Record<string, string>>({}) // propId → url
-  const [fotoCount, setFotoCount] = useState<Record<string, number>>({})
-  const [loading, setLoading] = useState(true)
 
   const [fOferta, setFOferta] = useState<'todas' | DisponiblePara>('todas')
   const [fEstado, setFEstado] = useState<'todos' | EstadoOferta>('todos')
@@ -31,40 +29,45 @@ export default function Cartera(): JSX.Element {
   const [precioMax, setPrecioMax] = useState('')
   const [ambMin, setAmbMin] = useState('')
 
-  const load = async (): Promise<void> => {
-    if (!isSupabaseConfigured) {
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    const { data } = await supabase
-      .from('propiedades')
-      .select('*')
-      .neq('disponible_para', 'ninguna')
-      .order('created_at', { ascending: false })
-    const list = (data ?? []) as Propiedad[]
-    setProps(list)
+  // Lista de la cartera derivada de la caché compartida de propiedades
+  // (disponibles, más nuevas primero). Reutiliza el fetch que ya hacen
+  // Propiedades/Dashboard: navegar entre ellas no vuelve a consultar.
+  const { data: allProps = [], isLoading: propsLoading } = usePropiedades()
+  const props = useMemo(
+    () =>
+      allProps
+        .filter((p) => p.disponible_para !== 'ninguna')
+        .slice()
+        .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '')),
+    [allProps]
+  )
+  const ids = useMemo(() => props.map((p) => p.id), [props])
 
-    const fotosPorProp = await listarFotosDe(list.map((p) => p.id))
-    const counts: Record<string, number> = {}
-    const portadaPaths: { propId: string; path: string }[] = []
-    for (const p of list) {
-      const fs: FotoPropiedad[] = fotosPorProp[p.id] ?? []
-      counts[p.id] = fs.length
-      const port = portadaDe(fs)
-      if (port) portadaPaths.push({ propId: p.id, path: port.path })
+  // Fotos/portadas con URLs firmadas, cacheadas aparte (no se vuelven a pedir en
+  // cada visita). staleTime amplio porque las URLs firmadas duran ~1 h.
+  const { data: fotos, isLoading: fotosLoading } = useQuery({
+    queryKey: ['cartera-fotos', ids],
+    enabled: isSupabaseConfigured && ids.length > 0,
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      const fotosPorProp = await listarFotosDe(ids)
+      const counts: Record<string, number> = {}
+      const portadaPaths: { propId: string; path: string }[] = []
+      for (const p of props) {
+        const fs: FotoPropiedad[] = fotosPorProp[p.id] ?? []
+        counts[p.id] = fs.length
+        const port = portadaDe(fs)
+        if (port) portadaPaths.push({ propId: p.id, path: port.path })
+      }
+      const urls = await urlsFirmadasFotos(portadaPaths.map((x) => x.path))
+      const map: Record<string, string> = {}
+      for (const x of portadaPaths) if (urls[x.path]) map[x.propId] = urls[x.path]
+      return { portadas: map, fotoCount: counts }
     }
-    setFotoCount(counts)
-    const urls = await urlsFirmadasFotos(portadaPaths.map((x) => x.path))
-    const map: Record<string, string> = {}
-    for (const x of portadaPaths) if (urls[x.path]) map[x.propId] = urls[x.path]
-    setPortadas(map)
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    void load()
-  }, [])
+  })
+  const portadas = fotos?.portadas ?? {}
+  const fotoCount = fotos?.fotoCount ?? {}
+  const loading = propsLoading || (ids.length > 0 && fotosLoading)
 
   const filtradas = useMemo(() => {
     const min = precioMin.trim() ? Number(precioMin) : null

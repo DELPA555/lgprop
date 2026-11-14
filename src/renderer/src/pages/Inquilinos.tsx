@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2, Search } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
 import type { Inquilino, Contrato } from '@/types/database'
+import { useInquilinos, useContratos, useInvalidateEntities, qk } from '@/hooks/entities'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
 import Modal from '@/components/ui/Modal'
@@ -25,8 +27,20 @@ const EMPTY: Form = {
 
 export default function Inquilinos(): JSX.Element {
   const toast = useToast()
-  const [rows, setRows] = useState<Inquilino[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: rows = [], isLoading: loading } = useInquilinos()
+  const { data: contratos = [] } = useContratos()
+  const { data: actPendientes = [] } = useQuery({
+    queryKey: ['actualizaciones_pendientes'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('actualizaciones_contrato')
+        .select('contrato_id')
+        .eq('confirmado_por_usuario', false)
+      return (data ?? []) as { contrato_id: string }[]
+    },
+    enabled: isSupabaseConfigured
+  })
+  const invalidate = useInvalidateEntities()
   const [q, setQ] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Inquilino | null>(null)
@@ -34,29 +48,11 @@ export default function Inquilinos(): JSX.Element {
   const [saving, setSaving] = useState(false)
   const [delTarget, setDelTarget] = useState<Inquilino | null>(null)
   const [deleting, setDeleting] = useState(false)
-  // Contrato vigente por inquilino (para mostrar valor inicial/actual)
-  const [contratoDeInq, setContratoDeInq] = useState<Record<string, Contrato>>({})
-  const [pendientesSet, setPendientesSet] = useState<Set<string>>(new Set())
 
-  const load = async (): Promise<void> => {
-    if (!isSupabaseConfigured) {
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    const [{ data, error }, { data: ctr }, { data: act }] = await Promise.all([
-      supabase.from('inquilinos').select('*').order('nombre'),
-      supabase.from('contratos').select('*'),
-      supabase
-        .from('actualizaciones_contrato')
-        .select('contrato_id')
-        .eq('confirmado_por_usuario', false)
-    ])
-    if (error) toast.error(error.message)
-    setRows(data ?? [])
-    // Elegir el contrato "vigente" de cada inquilino: activo primero, si no el más reciente.
+  // Contrato vigente por inquilino (activo primero, si no el más reciente) — derivado de la caché.
+  const contratoDeInq = useMemo(() => {
     const mapa: Record<string, Contrato> = {}
-    for (const c of ctr ?? []) {
+    for (const c of contratos) {
       const prev = mapa[c.inquilino_id]
       if (!prev) {
         mapa[c.inquilino_id] = c
@@ -67,14 +63,12 @@ export default function Inquilinos(): JSX.Element {
         (c.estado === prev.estado && c.fecha_inicio > prev.fecha_inicio)
       if (mejora) mapa[c.inquilino_id] = c
     }
-    setContratoDeInq(mapa)
-    setPendientesSet(new Set((act ?? []).map((a) => a.contrato_id)))
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    void load()
-  }, [])
+    return mapa
+  }, [contratos])
+  const pendientesSet = useMemo(
+    () => new Set(actPendientes.map((a) => a.contrato_id)),
+    [actPendientes]
+  )
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -123,7 +117,7 @@ export default function Inquilinos(): JSX.Element {
     }
     toast.success(editing ? 'Inquilino actualizado' : 'Inquilino creado')
     setModalOpen(false)
-    void load()
+    invalidate(qk.inquilinos)
   }
 
   const doDelete = async (): Promise<void> => {
@@ -141,7 +135,7 @@ export default function Inquilinos(): JSX.Element {
     }
     toast.success('Inquilino eliminado')
     setDelTarget(null)
-    void load()
+    invalidate(qk.inquilinos)
   }
 
   return (

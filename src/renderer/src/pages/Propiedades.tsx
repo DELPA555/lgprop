@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Search, Eye } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase/client'
-import type { Propiedad, Dueno, EstadoPropiedad, PagaExpensas } from '@/types/database'
+import type { Propiedad, EstadoPropiedad, PagaExpensas } from '@/types/database'
+import { usePropiedades, useDuenos, useInvalidateEntities, qk } from '@/hooks/entities'
 import PageHeader from '@/components/PageHeader'
 import ConfigNotice from '@/components/ConfigNotice'
 import Modal from '@/components/ui/Modal'
@@ -35,9 +36,9 @@ type AdminFiltro = 'todas' | 'admin' | 'noadmin'
 export default function Propiedades(): JSX.Element {
   const toast = useToast()
   const navigate = useNavigate()
-  const [rows, setRows] = useState<Propiedad[]>([])
-  const [duenos, setDuenos] = useState<Dueno[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: rows = [], isLoading: loading } = usePropiedades()
+  const { data: duenos = [] } = useDuenos()
+  const invalidate = useInvalidateEntities()
   const [q, setQ] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Propiedad | null>(null)
@@ -54,26 +55,6 @@ export default function Propiedades(): JSX.Element {
     for (const d of duenos) m[d.id] = d.nombre
     return m
   }, [duenos])
-
-  const load = async (): Promise<void> => {
-    if (!isSupabaseConfigured) {
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    const [{ data: props, error }, { data: dus }] = await Promise.all([
-      supabase.from('propiedades').select('*').order('direccion'),
-      supabase.from('duenos').select('*').order('nombre')
-    ])
-    if (error) toast.error(error.message)
-    setRows(props ?? [])
-    setDuenos(dus ?? [])
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    void load()
-  }, [])
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -134,7 +115,7 @@ export default function Propiedades(): JSX.Element {
     toast.success(editing ? 'Propiedad actualizada' : 'Propiedad creada')
     setConfirmUnmark(null)
     setModalOpen(false)
-    void load()
+    invalidate(qk.propiedades)
   }
 
   const save = async (): Promise<void> => {
@@ -173,7 +154,7 @@ export default function Propiedades(): JSX.Element {
     }
     toast.success('Propiedad eliminada')
     setDelTarget(null)
-    void load()
+    invalidate(qk.propiedades)
   }
 
   return (

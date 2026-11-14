@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CalendarClock,
   AlertTriangle,
@@ -102,21 +103,19 @@ const ESTADO_CHIP: Record<EstadoPago, { tone: ChipTone; label: string }> = {
 
 export default function Dashboard(): JSX.Element {
   const { isAdmin, isSocio } = useAuth()
-  const [metrics, setMetrics] = useState<Metrics | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [reloadKey, setReloadKey] = useState(0)
+  const queryClient = useQueryClient()
   const [marcarTarget, setMarcarTarget] = useState<{ contrato: Contrato; etiqueta: string } | null>(
     null
   )
 
-  useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setLoading(false)
-      return
-    }
-    let alive = true
-    ;(async () => {
-      setLoading(true)
+  // Loader del Dashboard envuelto en caché (TanStack Query). El cuerpo y TODOS
+  // los cálculos de KPIs/comisiones son idénticos a la versión anterior: lo
+  // único que cambia es que se cachea (volver al inicio es instantáneo) y que
+  // revalida en segundo plano. El antiguo `reloadKey` ahora es invalidación.
+  const { data: metrics = null, isLoading: loading } = useQuery({
+    queryKey: ['dashboard-metrics', isAdmin, isSocio],
+    enabled: isSupabaseConfigured,
+    queryFn: async (): Promise<Metrics> => {
       const monthStartISO = `${todayISO().slice(0, 7)}-01`
       const yearStart = `${new Date().getFullYear()}-01-01`
       const hoy = todayISO()
@@ -339,8 +338,7 @@ export default function Dashboard(): JSX.Element {
         }
       }
 
-      if (!alive) return
-      setMetrics({
+      return {
         vencimientos,
         actualizaciones,
         pagosAtrasados,
@@ -361,13 +359,9 @@ export default function Dashboard(): JSX.Element {
         honorariosPendientes,
         honorariosPendientesMonto,
         porActualizar
-      })
-      setLoading(false)
-    })()
-    return () => {
-      alive = false
+      }
     }
-  }, [isAdmin, isSocio, reloadKey])
+  })
 
   const alerts = useMemo(() => {
     const m = metrics
@@ -751,7 +745,10 @@ export default function Dashboard(): JSX.Element {
         contrato={marcarTarget?.contrato ?? null}
         etiqueta={marcarTarget?.etiqueta}
         onClose={() => setMarcarTarget(null)}
-        onDone={() => setReloadKey((k) => k + 1)}
+        onDone={() => {
+          void queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] })
+          void queryClient.invalidateQueries({ queryKey: ['contratos'] })
+        }}
       />
     </div>
   )

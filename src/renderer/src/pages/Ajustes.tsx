@@ -95,23 +95,33 @@ export default function Ajustes(): JSX.Element {
       return
     }
     ;(async () => {
-      const { data } = await supabase
-        .from('configuracion')
-        .select('clave, valor')
-        .in('clave', [
-          CLAVE_DIAS,
-          CLAVE_COTIZ,
-          CLAVE_CORTE,
-          CLAVE_RECLAMO,
-          CLAVE_EVENTOS,
-          CLAVE_CLAUSULA_LOCACION,
-          CLAVE_CLAUSULA_VENTA,
-          CLAVE_CIUDAD,
-          CLAVE_REGISTRO,
-          CLAVE_FICHA_TEL,
-          CLAVE_FICHA_EMAIL,
-          CLAVE_FICHA_WEB
-        ])
+      // Las tres cargas (configuración, cotizaciones, backups) son independientes
+      // entre sí: en paralelo en vez de en serie.
+      const [{ data }, { data: cot }] = await Promise.all([
+        supabase
+          .from('configuracion')
+          .select('clave, valor')
+          .in('clave', [
+            CLAVE_DIAS,
+            CLAVE_COTIZ,
+            CLAVE_CORTE,
+            CLAVE_RECLAMO,
+            CLAVE_EVENTOS,
+            CLAVE_CLAUSULA_LOCACION,
+            CLAVE_CLAUSULA_VENTA,
+            CLAVE_CIUDAD,
+            CLAVE_REGISTRO,
+            CLAVE_FICHA_TEL,
+            CLAVE_FICHA_EMAIL,
+            CLAVE_FICHA_WEB
+          ]),
+        supabase
+          .from('cotizaciones_dolar')
+          .select('tipo, venta, fecha')
+          .order('fecha', { ascending: false })
+          .limit(30),
+        loadBackups()
+      ])
       for (const row of data ?? []) {
         if (row.clave === CLAVE_DIAS && row.valor) setDias(parseInt(row.valor, 10) || 60)
         if (row.clave === CLAVE_COTIZ && row.valor) setCotizTipo(row.valor)
@@ -130,15 +140,9 @@ export default function Ajustes(): JSX.Element {
         if (row.clave === CLAVE_FICHA_WEB && row.valor != null) setFichaWeb(row.valor)
       }
       // Últimas cotizaciones (una por tipo) para mostrar de referencia
-      const { data: cot } = await supabase
-        .from('cotizaciones_dolar')
-        .select('tipo, venta, fecha')
-        .order('fecha', { ascending: false })
-        .limit(30)
       const latest: Record<string, { tipo: string; venta: number | null; fecha: string }> = {}
       for (const c of cot ?? []) if (!latest[c.tipo]) latest[c.tipo] = c
       setCotizList(Object.values(latest))
-      await loadBackups()
       setLoading(false)
     })()
   }, [])
